@@ -101,6 +101,35 @@ class Database:
         conn.close()
         return deleted
 
+    def get_or_create_manual_book(self, source: str = 'CLI') -> int:
+        """Get or create a virtual book for manually added quotes
+
+        Args:
+            source: Source of manual quotes ('CLI' or 'Telegram')
+
+        Returns:
+            book_id of the manual book
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Check if manual book already exists
+        book_title = f"Ручные цитаты ({source})"
+        cursor.execute('SELECT id FROM books WHERE title = ?', (book_title,))
+        result = cursor.fetchone()
+
+        if result:
+            book_id = result['id']
+        else:
+            # Create new manual book
+            cursor.execute('INSERT INTO books (title, author) VALUES (?, ?)',
+                          (book_title, 'Разное'))
+            book_id = cursor.lastrowid
+            conn.commit()
+
+        conn.close()
+        return book_id
+
     # Quote operations
     def add_quote(self, text: str, category: str, book_id: Optional[int] = None,
                   quote_author: Optional[str] = None, quote_source: Optional[str] = None) -> int:

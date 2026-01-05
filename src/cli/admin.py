@@ -141,12 +141,16 @@ def add_quote(text, category):
     # Normalize category input
     category = normalize_category(category)
 
+    # Get or create manual quotes book
+    manual_book_id = db.get_or_create_manual_book(source='CLI')
+
     # Parse quote to extract author and source if provided
     quote_text, quote_author, quote_source = parse_quote(text)
-    quote_id = db.add_quote(quote_text, category, None, quote_author, quote_source)
+    quote_id = db.add_quote(quote_text, category, manual_book_id, quote_author, quote_source)
 
     category_name = CATEGORY_DISPLAY.get(category, category)
     click.echo(f'✓ Цитата добавлена (ID: {quote_id}) в категорию "{category_name}"')
+    click.echo(f'  Книга: Ручные цитаты (CLI)')
     if quote_author:
         click.echo(f'  Автор: {quote_author}')
     if quote_source:
