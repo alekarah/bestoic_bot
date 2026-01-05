@@ -32,7 +32,11 @@ wheels/
 *.db
 *.sqlite
 *.sqlite3
-data/
+
+# Data folder (ignore all except examples)
+data/*
+!data/example_quote.txt
+!data/README.md
 
 # IDE
 .vscode/

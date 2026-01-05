@@ -1,5 +1,5 @@
 import logging
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from src.bot.handlers import start_command, help_command, settings_command, quote_command, button_callback
 from src.bot.scheduler import setup_scheduler
@@ -14,6 +14,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def post_init(application: Application):
+    """Set up bot menu commands after initialization"""
+    bot_commands = [
+        BotCommand("start", "Начать работу с ботом"),
+        BotCommand("quote", "Получить случайную цитату"),
+        BotCommand("settings", "Настроить категорию и время"),
+        BotCommand("help", "Помощь и информация"),
+    ]
+    await application.bot.set_my_commands(bot_commands)
+    logger.info("Bot menu commands set successfully!")
+
+
 def main():
     """Start the bot"""
     # Validate configuration
@@ -22,7 +34,7 @@ def main():
         return
 
     # Create application
-    application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+    application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).post_init(post_init).build()
 
     # Register handlers
     application.add_handler(CommandHandler("start", start_command))
