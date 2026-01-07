@@ -91,10 +91,24 @@ class Database:
         conn.close()
         return books
 
-    def delete_book(self, book_id: int) -> bool:
-        """Delete a book"""
+    def delete_book(self, book_id: int, delete_quotes: bool = False) -> bool:
+        """Delete a book
+
+        Args:
+            book_id: ID of the book to delete
+            delete_quotes: If True, also delete all quotes from this book
+
+        Returns:
+            True if book was deleted, False otherwise
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
+
+        if delete_quotes:
+            # First delete all quotes from this book
+            cursor.execute('DELETE FROM quotes WHERE book_id = ?', (book_id,))
+
+        # Delete the book (if delete_quotes=False, quotes will have book_id=NULL due to ON DELETE SET NULL)
         cursor.execute('DELETE FROM books WHERE id = ?', (book_id,))
         deleted = cursor.rowcount > 0
         conn.commit()
@@ -131,9 +145,33 @@ class Database:
         return book_id
 
     # Quote operations
+    def find_exact_duplicate(self, text: str) -> Optional[Tuple]:
+        """Find exact duplicate quote by text
+
+        Returns:
+            Quote row if found, None otherwise
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.book_id
+            FROM quotes q
+            LEFT JOIN books b ON q.book_id = b.id
+            WHERE q.text = ?
+            LIMIT 1
+        ''', (text,))
+        quote = cursor.fetchone()
+        conn.close()
+        return quote
+
     def add_quote(self, text: str, category: str, book_id: Optional[int] = None,
                   quote_author: Optional[str] = None, quote_source: Optional[str] = None) -> int:
-        """Add a new quote"""
+        """Add a new quote (checks for exact duplicates first)"""
+        # Check for exact duplicate
+        existing = self.find_exact_duplicate(text)
+        if existing:
+            return existing['id']  # Return existing quote ID, don't add duplicate
+
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('INSERT INTO quotes (text, category, book_id, quote_author, quote_source) VALUES (?, ?, ?, ?, ?)',
@@ -172,7 +210,7 @@ class Database:
 
         if category and category != 'all':
             cursor.execute('''
-                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source
+                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.book_id
                 FROM quotes q
                 LEFT JOIN books b ON q.book_id = b.id
                 WHERE q.category = ?
@@ -180,7 +218,7 @@ class Database:
             ''', (category,))
         else:
             cursor.execute('''
-                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source
+                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.book_id
                 FROM quotes q
                 LEFT JOIN books b ON q.book_id = b.id
                 ORDER BY q.created_at DESC

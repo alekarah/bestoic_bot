@@ -78,16 +78,26 @@ def add_book(file_path, title, author, category):
             paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
 
         added_count = 0
+        skipped_duplicates = 0
         for paragraph in paragraphs:
             # Skip very short paragraphs (likely not quotes)
             if len(paragraph) > 50:
                 # Parse quote to extract author and source
                 quote_text, quote_author, quote_source = parse_quote(paragraph)
+
+                # Check for duplicate
+                existing = db.find_exact_duplicate(quote_text)
+                if existing:
+                    skipped_duplicates += 1
+                    continue
+
                 db.add_quote(quote_text, category, book_id, quote_author, quote_source)
                 added_count += 1
 
         category_name = CATEGORY_DISPLAY.get(category, category)
         click.echo(f'✓ Добавлено {added_count} цитат из категории "{category_name}"')
+        if skipped_duplicates > 0:
+            click.echo(f'⚠ Пропущено {skipped_duplicates} дубликатов')
         click.echo(f'✓ Всего обработано {len(paragraphs)} абзацев')
 
     except Exception as e:
@@ -115,13 +125,42 @@ def list_books():
 
 @book.command('delete')
 @click.argument('book_id', type=int)
-@click.confirmation_option(prompt='Вы уверены? Все цитаты из этой книги будут удалены.')
 def delete_book(book_id):
     """Удалить книгу"""
-    if db.delete_book(book_id):
-        click.echo(f'✓ Книга ID:{book_id} удалена')
-    else:
+    # Get book info first
+    books = db.get_all_books()
+    book = next((b for b in books if b['id'] == book_id), None)
+
+    if not book:
         click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
+        return
+
+    # Count quotes in this book
+    all_quotes = db.get_all_quotes()
+    book_quotes_count = sum(1 for q in all_quotes if q['book_id'] == book_id)
+
+    click.echo(f'\nКнига: {book["title"]} - {book["author"]}')
+    click.echo(f'Цитат в книге: {book_quotes_count}')
+    click.echo()
+
+    # Ask what to do
+    if not click.confirm('Вы уверены что хотите удалить эту книгу?'):
+        click.echo('Отменено')
+        return
+
+    if book_quotes_count > 0:
+        delete_quotes = click.confirm('\nУдалить также все цитаты из этой книги?', default=False)
+    else:
+        delete_quotes = False
+
+    # Delete book
+    if db.delete_book(book_id, delete_quotes=delete_quotes):
+        if delete_quotes:
+            click.echo(f'✓ Книга ID:{book_id} и {book_quotes_count} цитат удалены')
+        else:
+            click.echo(f'✓ Книга ID:{book_id} удалена (цитаты сохранены без привязки к книге)')
+    else:
+        click.echo(f'✗ Ошибка при удалении книги', err=True)
 
 
 # Quote commands
@@ -146,6 +185,17 @@ def add_quote(text, category):
 
     # Parse quote to extract author and source if provided
     quote_text, quote_author, quote_source = parse_quote(text)
+
+    # Check for existing duplicate before adding
+    existing = db.find_exact_duplicate(quote_text)
+    if existing:
+        click.echo(f'⚠ Цитата уже существует (ID: {existing["id"]})', err=True)
+        category_name = CATEGORY_DISPLAY.get(existing["category"], existing["category"])
+        click.echo(f'  Категория: {category_name}')
+        if existing["title"]:
+            click.echo(f'  Книга: {existing["title"]} - {existing["author"]}')
+        return
+
     quote_id = db.add_quote(quote_text, category, manual_book_id, quote_author, quote_source)
 
     category_name = CATEGORY_DISPLAY.get(category, category)
@@ -256,13 +306,139 @@ def edit_quote(quote_id, text, category):
 
 @quote.command('delete')
 @click.argument('quote_id', type=int)
-@click.confirmation_option(prompt='Вы уверены?')
 def delete_quote(quote_id):
     """Удалить цитату"""
+    # Get quote info first
+    quotes = db.get_all_quotes()
+    quote = next((q for q in quotes if q["id"] == quote_id), None)
+
+    if not quote:
+        click.echo(f'✗ Цитата ID:{quote_id} не найдена', err=True)
+        return
+
+    # Display quote
+    click.echo('\n' + '='*80)
+    click.echo(f'ID: {quote["id"]}')
+    category_name = CATEGORY_DISPLAY.get(quote["category"], quote["category"])
+    click.echo(f'Категория: {category_name}')
+
+    if quote["title"]:
+        click.echo(f'Книга: {quote["title"]} - {quote["author"]}')
+
+    if quote["quote_author"] or quote["quote_source"]:
+        attribution = []
+        if quote["quote_author"]:
+            attribution.append(quote["quote_author"])
+        if quote["quote_source"]:
+            attribution.append(quote["quote_source"])
+        click.echo(f'Атрибуция: {" / ".join(attribution)}')
+
+    click.echo('-'*80)
+    # Show preview if quote is long
+    if len(quote["text"]) > 300:
+        click.echo(quote["text"][:300] + '...')
+    else:
+        click.echo(quote["text"])
+    click.echo('='*80 + '\n')
+
+    # Confirm deletion
+    if not click.confirm('Вы уверены что хотите удалить эту цитату?'):
+        click.echo('Отменено')
+        return
+
     if db.delete_quote(quote_id):
         click.echo(f'✓ Цитата ID:{quote_id} удалена')
     else:
-        click.echo(f'✗ Цитата ID:{quote_id} не найдена', err=True)
+        click.echo(f'✗ Ошибка при удалении цитаты', err=True)
+
+
+@quote.command('find-duplicates')
+@click.option('--threshold', default=90, type=int, help='Порог схожести (0-100)')
+def find_duplicates(threshold):
+    """Найти похожие дубликаты цитат"""
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+    except ImportError:
+        click.echo('✗ Требуется библиотека scikit-learn', err=True)
+        click.echo('Установите: pip install scikit-learn')
+        return
+
+    quotes = db.get_all_quotes()
+    total = len(quotes)
+
+    click.echo(f'\n🔍 Поиск похожих цитат (порог схожести: {threshold}%)...')
+    click.echo(f'Всего цитат: {total}\n')
+
+    texts = [q['text'] for q in quotes]
+
+    click.echo('Векторизация текстов...')
+    vectorizer = TfidfVectorizer(ngram_range=(1, 2))
+    tfidf_matrix = vectorizer.fit_transform(texts)
+
+    click.echo('Вычисление схожести...')
+    similarity_matrix = cosine_similarity(tfidf_matrix)
+
+    duplicates = []
+
+    # Find pairs with similarity above threshold
+    for i in range(total):
+        if i % max(1, total // 10) == 0:
+            progress = int((i / total) * 100)
+            click.echo(f'Прогресс: {progress}%')
+
+        for j in range(i + 1, total):
+            sim_score = int(similarity_matrix[i, j] * 100)
+            if sim_score >= threshold:
+                duplicates.append((quotes[i], quotes[j], sim_score))
+
+    click.echo('Прогресс: 100%')
+    click.echo(f'\n✓ Проверка завершена\n')
+
+    if not duplicates:
+        click.echo('✓ Похожих дубликатов не найдено!')
+        return
+
+    click.echo(f'Найдено {len(duplicates)} пар похожих цитат:\n')
+
+    for idx, (q1, q2, sim) in enumerate(duplicates, 1):
+        click.echo('='*80)
+        click.echo(f'Пара #{idx} (схожесть {sim}%):')
+        click.echo('-'*80)
+
+        # Show first quote
+        click.echo(f'[1] ID: {q1["id"]} | Категория: {CATEGORY_DISPLAY.get(q1["category"], q1["category"])}')
+        if q1["title"]:
+            click.echo(f'    Книга: {q1["title"]} - {q1["author"]}')
+        click.echo(f'    Текст: {q1["text"][:150]}...' if len(q1["text"]) > 150 else f'    Текст: {q1["text"]}')
+
+        click.echo()
+
+        # Show second quote
+        click.echo(f'[2] ID: {q2["id"]} | Категория: {CATEGORY_DISPLAY.get(q2["category"], q2["category"])}')
+        if q2["title"]:
+            click.echo(f'    Книга: {q2["title"]} - {q2["author"]}')
+        click.echo(f'    Текст: {q2["text"][:150]}...' if len(q2["text"]) > 150 else f'    Текст: {q2["text"]}')
+
+        click.echo()
+
+        # Ask what to do
+        choice = click.prompt(
+            'Действие: [1] Оставить только ID:' + str(q1["id"]) + '  [2] Оставить только ID:' + str(q2["id"]) + '  [B] Оставить обе  [S] Пропустить',
+            type=str,
+            default='B'
+        ).upper()
+
+        if choice == '1':
+            if db.delete_quote(q2["id"]):
+                click.echo(f'✓ Цитата ID:{q2["id"]} удалена\n')
+        elif choice == '2':
+            if db.delete_quote(q1["id"]):
+                click.echo(f'✓ Цитата ID:{q1["id"]} удалена\n')
+        elif choice == 'S':
+            click.echo('Пропущено\n')
+        else:  # 'B' or anything else
+            click.echo('Обе цитаты сохранены\n')
 
 
 @cli.command('stats')
