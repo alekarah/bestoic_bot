@@ -91,9 +91,8 @@ async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Ask for category
     keyboard = [
-        [InlineKeyboardButton("📖 Теория", callback_data='add_cat_theory')],
-        [InlineKeyboardButton("🏃 Практика", callback_data='add_cat_practice')],
         [InlineKeyboardButton("💭 Цитаты", callback_data='add_cat_quotes')],
+        [InlineKeyboardButton("📅 Стоицизм на каждый день", callback_data='add_cat_daily')],
         [InlineKeyboardButton("❌ Отменить", callback_data='add_cat_cancel')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -498,9 +497,8 @@ async def admin_edit_quote_field(update: Update, context: ContextTypes.DEFAULT_T
 
     if field == 'category':
         keyboard = [
-            [InlineKeyboardButton("📖 Теория", callback_data='edit_cat_theory')],
-            [InlineKeyboardButton("🏃 Практика", callback_data='edit_cat_practice')],
             [InlineKeyboardButton("💭 Цитаты", callback_data='edit_cat_quotes')],
+            [InlineKeyboardButton("📅 Стоицизм на каждый день", callback_data='edit_cat_daily')],
             [InlineKeyboardButton("❌ Отменить", callback_data='edit_cat_cancel')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)

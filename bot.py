@@ -69,8 +69,8 @@ def main():
     application.add_handler(get_edit_quote_handler())
     application.add_handler(get_delete_quote_handler())
 
-    # Register callback handler for settings (with pattern to avoid catching admin callbacks)
-    application.add_handler(CallbackQueryHandler(button_callback, pattern='^(settings_|category_|time_)'))
+    # Register callback handler for settings and subscriptions (with pattern to avoid catching admin callbacks)
+    application.add_handler(CallbackQueryHandler(button_callback, pattern='^(add_sub_|remove_sub_|change_time_|select_time_|cancel_subscription)'))
 
     # Setup scheduler
     scheduler = setup_scheduler(application)

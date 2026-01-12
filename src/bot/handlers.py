@@ -38,57 +38,61 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 /start - начать работу с ботом
 /quote - получить случайную цитату
-/settings - настроить категорию и время
+/settings - управление подписками
 /help - это сообщение
 
 🎯 Категории цитат:
-• Теория - философские концепции стоицизма
-• Практика - практические упражнения
-• Цитаты - вдохновляющие мысли
-• Все категории - случайная цитата из любой категории
+• 💭 Цитаты - вдохновляющие мысли стоиков
+• 📅 Стоицизм на каждый день - ежедневные размышления
 
 ⏰ Время отправки:
 • Утро - 8:00
 • День - 14:00
 • Вечер - 20:00
+
+📬 Система подписок:
+Вы можете подписаться на обе категории и выбрать своё время для каждой!
 """
 
     await update.message.reply_text(help_text)
 
 
 async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /settings command - show settings menu"""
-    keyboard = [
-        [
-            InlineKeyboardButton("📚 Категория", callback_data='settings_category'),
-            InlineKeyboardButton("⏰ Время", callback_data='settings_time')
-        ],
-        [
-            InlineKeyboardButton("✅ Включить уведомления", callback_data='settings_enable'),
-            InlineKeyboardButton("⏸ Отключить", callback_data='settings_disable')
-        ]
-    ]
+    """Handle /settings command - show subscription management menu"""
+    user_id = update.effective_user.id
+
+    # Get user's current subscriptions
+    subscriptions = db.get_user_subscriptions(user_id)
+
+    # Build settings message
+    if subscriptions:
+        settings_text = "📬 Ваши подписки:\n\n"
+        for sub in subscriptions:
+            category_name = config.CATEGORIES.get(sub['category'], sub['category'])
+            time_name = config.TIME_SLOTS.get(sub['time_slot'], sub['time_slot'])
+            status = "✅" if sub['is_active'] else "⏸"
+            settings_text += f"{status} {category_name} — {time_name}\n"
+        settings_text += "\nВыберите действие:"
+    else:
+        settings_text = "📬 У вас пока нет активных подписок.\n\nДобавьте первую подписку!"
+
+    # Build keyboard
+    keyboard = []
+
+    # Add subscription buttons
+    if not db.has_subscription(user_id, 'quotes'):
+        keyboard.append([InlineKeyboardButton("➕ Добавить: Цитаты", callback_data='add_sub_quotes')])
+    else:
+        keyboard.append([InlineKeyboardButton("⏰ Изменить время: Цитаты", callback_data='change_time_quotes')])
+        keyboard.append([InlineKeyboardButton("🗑 Удалить: Цитаты", callback_data='remove_sub_quotes')])
+
+    if not db.has_subscription(user_id, 'daily'):
+        keyboard.append([InlineKeyboardButton("➕ Добавить: Стоицизм на каждый день", callback_data='add_sub_daily')])
+    else:
+        keyboard.append([InlineKeyboardButton("⏰ Изменить время: Стоицизм на каждый день", callback_data='change_time_daily')])
+        keyboard.append([InlineKeyboardButton("🗑 Удалить: Стоицизм на каждый день", callback_data='remove_sub_daily')])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    user = db.get_user(update.effective_user.id)
-    if user:
-        category_name = config.CATEGORIES.get(user['category_preference'], 'Не выбрано')
-        time_name = user['time_slot'].capitalize()
-        status = 'Включены' if user['is_active'] else 'Отключены'
-
-        settings_text = f"""
-⚙️ Текущие настройки:
-
-📚 Категория: {category_name}
-⏰ Время: {time_name} ({config.TIME_SLOTS[user['time_slot']]})
-🔔 Уведомления: {status}
-
-Выбери что хочешь изменить:
-"""
-    else:
-        settings_text = "⚙️ Настройки:\n\nВыбери что хочешь настроить:"
-
     await update.message.reply_text(settings_text, reply_markup=reply_markup)
 
 
@@ -99,16 +103,25 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not user:
         db.add_user(user_id, update.effective_user.username, update.effective_user.first_name)
-        user = db.get_user(user_id)
 
-    category = user['category_preference'] if user else 'all'
-    quote = db.get_random_quote(user_id, category)
+    # Get user's subscriptions to determine which category to use
+    subscriptions = db.get_user_subscriptions(user_id)
+
+    if not subscriptions:
+        # No subscriptions, send a random quote from any category
+        quote = db.get_random_quote(user_id, None)
+        category_text = "случайная"
+    else:
+        # Send from first subscription category
+        category = subscriptions[0]['category']
+        quote = db.get_random_quote(user_id, category)
+        category_text = config.CATEGORIES.get(category, category)
 
     if quote:
         await send_quote(update.effective_chat.id, quote, context)
         db.mark_quote_as_sent(user_id, quote['id'])
     else:
-        await update.message.reply_text("К сожалению, цитаты закончились. Попробуйте позже.")
+        await update.message.reply_text(f"К сожалению, цитаты из категории '{category_text}' закончились. Попробуйте позже.")
 
 
 async def send_quote(chat_id: int, quote: tuple, context: ContextTypes.DEFAULT_TYPE):
@@ -126,56 +139,96 @@ async def send_quote(chat_id: int, quote: tuple, context: ContextTypes.DEFAULT_T
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle button callbacks"""
+    """Handle button callbacks for subscription management"""
     query = update.callback_query
     await query.answer()
 
     user_id = update.effective_user.id
     data = query.data
 
-    # Settings menu
-    if data == 'settings_category':
-        keyboard = [
-            [InlineKeyboardButton("📖 Теория", callback_data='category_theory')],
-            [InlineKeyboardButton("🏃 Практика", callback_data='category_practice')],
-            [InlineKeyboardButton("💭 Цитаты", callback_data='category_quotes')],
-            [InlineKeyboardButton("🎲 Все категории", callback_data='category_all')],
-            [InlineKeyboardButton("« Назад", callback_data='settings_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text("📚 Выбери категорию цитат:", reply_markup=reply_markup)
+    # Add subscription OR change time - show time selection
+    if data.startswith('add_sub_') or data.startswith('change_time_'):
+        if data.startswith('add_sub_'):
+            category = data.replace('add_sub_', '')
+            action = 'add'
+        else:
+            category = data.replace('change_time_', '')
+            action = 'change'
 
-    elif data == 'settings_time':
-        keyboard = [
-            [InlineKeyboardButton("🌅 Утро (8:00)", callback_data='time_morning')],
-            [InlineKeyboardButton("☀️ День (14:00)", callback_data='time_day')],
-            [InlineKeyboardButton("🌙 Вечер (20:00)", callback_data='time_evening')],
-            [InlineKeyboardButton("« Назад", callback_data='settings_back')]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text("⏰ Выбери время получения цитат:", reply_markup=reply_markup)
-
-    elif data == 'settings_enable':
-        db.toggle_user_active(user_id, True)
-        await query.edit_message_text("✅ Уведомления включены!\n\nИспользуй /settings для настройки.")
-
-    elif data == 'settings_disable':
-        db.toggle_user_active(user_id, False)
-        await query.edit_message_text("⏸ Уведомления отключены.\n\nИспользуй /settings чтобы включить снова.")
-
-    elif data == 'settings_back':
-        await settings_command(update, context)
-
-    # Category selection
-    elif data.startswith('category_'):
-        category = data.replace('category_', '')
-        db.update_user_preferences(user_id, category=category)
         category_name = config.CATEGORIES.get(category, category)
-        await query.edit_message_text(f"✅ Категория изменена на: {category_name}\n\nИспользуй /settings для других настроек.")
 
-    # Time selection
-    elif data.startswith('time_'):
-        time_slot = data.replace('time_', '')
-        db.update_user_preferences(user_id, time_slot=time_slot)
-        time_name = config.TIME_SLOTS.get(time_slot, time_slot)
-        await query.edit_message_text(f"✅ Время изменено на: {time_name}\n\nИспользуй /settings для других настроек.")
+        # Store category and action in context for next step
+        context.user_data['pending_subscription_category'] = category
+        context.user_data['pending_subscription_action'] = action
+
+        keyboard = [
+            [InlineKeyboardButton("🌅 Утро (8:00)", callback_data=f'select_time_morning')],
+            [InlineKeyboardButton("☀️ День (14:00)", callback_data=f'select_time_day')],
+            [InlineKeyboardButton("🌙 Вечер (20:00)", callback_data=f'select_time_evening')],
+            [InlineKeyboardButton("« Отмена", callback_data='cancel_subscription')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        # Show time descriptions
+        if action == 'add':
+            time_desc_text = f"📬 Подписка на: {category_name}\n\n⏰ Выберите время:\n\n"
+        else:
+            time_desc_text = f"⏰ Изменить время: {category_name}\n\n⏰ Выберите новое время:\n\n"
+
+        time_desc_text += f"🌅 Утро: {config.TIME_SLOT_DESCRIPTIONS['morning']}\n\n"
+        time_desc_text += f"☀️ День: {config.TIME_SLOT_DESCRIPTIONS['day']}\n\n"
+        time_desc_text += f"🌙 Вечер: {config.TIME_SLOT_DESCRIPTIONS['evening']}"
+
+        await query.edit_message_text(time_desc_text, reply_markup=reply_markup)
+
+    # Time selection for subscription (add or change)
+    elif data.startswith('select_time_'):
+        time_slot = data.replace('select_time_', '')
+        category = context.user_data.get('pending_subscription_category')
+        action = context.user_data.get('pending_subscription_action', 'add')
+
+        if not category:
+            await query.edit_message_text("❌ Ошибка: категория не выбрана. Попробуйте снова через /settings")
+            return
+
+        # Add or update subscription
+        success = db.add_subscription(user_id, category, time_slot)
+
+        if success:
+            if action == 'change':
+                # Show message for time change
+                time_name = config.TIME_SLOTS.get(time_slot, time_slot)
+                category_name = config.CATEGORIES.get(category, category)
+                await query.edit_message_text(
+                    f"✅ Время подписки '{category_name}' изменено на {time_name}!\n\n"
+                    f"Используй /settings для управления подписками."
+                )
+            else:
+                # Show confirmation message for new subscription
+                confirmation = config.SUBSCRIPTION_CONFIRMATIONS.get(category, {}).get(time_slot,
+                    "✅ Подписка оформлена!")
+                await query.edit_message_text(f"{confirmation}\n\nИспользуй /settings для управления подписками.")
+        else:
+            await query.edit_message_text("❌ Ошибка при оформлении подписки. Попробуйте позже.")
+
+        # Clear context
+        context.user_data.pop('pending_subscription_category', None)
+        context.user_data.pop('pending_subscription_action', None)
+
+    # Remove subscription
+    elif data.startswith('remove_sub_'):
+        category = data.replace('remove_sub_', '')
+        category_name = config.CATEGORIES.get(category, category)
+
+        success = db.remove_subscription(user_id, category)
+
+        if success:
+            await query.edit_message_text(f"✅ Подписка на '{category_name}' удалена.\n\nИспользуй /settings для управления подписками.")
+        else:
+            await query.edit_message_text("❌ Ошибка при удалении подписки.")
+
+    # Cancel subscription
+    elif data == 'cancel_subscription':
+        context.user_data.pop('pending_subscription_category', None)
+        context.user_data.pop('pending_subscription_action', None)
+        await query.edit_message_text("❌ Отменено.\n\nИспользуй /settings для управления подписками.")

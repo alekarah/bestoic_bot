@@ -12,30 +12,36 @@ db = Database()
 
 
 async def send_scheduled_quotes(context: ContextTypes.DEFAULT_TYPE, time_slot: str):
-    """Send quotes to all users in a specific time slot"""
+    """Send quotes to all users with subscriptions for a specific time slot"""
     logger.info(f"Sending scheduled quotes for time slot: {time_slot}")
 
-    users = db.get_users_by_time_slot(time_slot)
+    # Get all active subscriptions for this time slot
+    subscriptions = db.get_subscriptions_by_time(time_slot)
     sent_count = 0
 
-    for user in users:
-        user_id = user['user_id']
-        category = user['category_preference']
+    for subscription in subscriptions:
+        user_id = subscription['user_id']
+        category = subscription['category']
 
+        # For 'daily' category, ensure we only send once per day
+        # The get_random_quote method already handles this by returning quote for current day
         quote = db.get_random_quote(user_id, category)
 
         if quote:
             try:
                 await send_quote(user_id, quote, context)
-                db.mark_quote_as_sent(user_id, quote['id'])
+                # Only mark as sent for non-daily quotes
+                # Daily quotes should be available every day regardless of sent status
+                if category != 'daily':
+                    db.mark_quote_as_sent(user_id, quote['id'])
                 sent_count += 1
-                logger.info(f"Sent quote to user {user_id}")
+                logger.info(f"Sent {category} quote to user {user_id}")
             except Exception as e:
                 logger.error(f"Failed to send quote to user {user_id}: {e}")
         else:
-            logger.warning(f"No quotes available for user {user_id}")
+            logger.warning(f"No quotes available for user {user_id} in category {category}")
 
-    logger.info(f"Finished sending quotes for {time_slot}. Sent to {sent_count} users.")
+    logger.info(f"Finished sending quotes for {time_slot}. Sent {sent_count} quotes.")
 
 
 def setup_scheduler(application):

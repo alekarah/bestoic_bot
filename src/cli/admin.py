@@ -1,7 +1,7 @@
 import click
 import os
 from src.database.models import Database
-from src.utils.quote_parser import parse_quote
+from src.utils.quote_parser import parse_quote, parse_daily_stoicism_book
 
 
 db = Database()
@@ -9,21 +9,17 @@ db = Database()
 
 # Mapping for category names
 CATEGORY_MAP = {
-    'theory': 'theory',
-    't': 'theory',
-    'теория': 'theory',
-    'practice': 'practice',
-    'p': 'practice',
-    'практика': 'practice',
     'quotes': 'quotes',
     'q': 'quotes',
-    'цитаты': 'quotes'
+    'цитаты': 'quotes',
+    'daily': 'daily',
+    'd': 'daily',
+    'ежедневно': 'daily'
 }
 
 CATEGORY_DISPLAY = {
-    'theory': 'Теория',
-    'practice': 'Практика',
-    'quotes': 'Цитаты'
+    'quotes': 'Цитаты',
+    'daily': 'Стоицизм на каждый день'
 }
 
 
@@ -32,7 +28,7 @@ def normalize_category(value):
     normalized = CATEGORY_MAP.get(value.lower())
     if not normalized:
         raise click.BadParameter(
-            f'Категория должна быть: Теория (t), Практика (p), или Цитаты (q)'
+            f'Категория должна быть: Цитаты (q) или Стоицизм на каждый день (d)'
         )
     return normalized
 
@@ -55,7 +51,7 @@ def book():
 @click.option('--title', prompt='Название книги', help='Название книги')
 @click.option('--author', prompt='Автор', help='Автор книги')
 @click.option('--category',
-              prompt='Категория [Теория (t) / Практика (p) / Цитаты (q)]',
+              prompt='Категория [Цитаты (q) / Стоицизм на каждый день (d)]',
               help='Категория цитат из книги')
 def add_book(file_path, title, author, category):
     """Загрузить книгу из файла и разделить на цитаты"""
@@ -99,6 +95,56 @@ def add_book(file_path, title, author, category):
         if skipped_duplicates > 0:
             click.echo(f'⚠ Пропущено {skipped_duplicates} дубликатов')
         click.echo(f'✓ Всего обработано {len(paragraphs)} абзацев')
+
+    except Exception as e:
+        click.echo(f'✗ Ошибка: {str(e)}', err=True)
+
+
+@book.command('add-daily')
+@click.argument('file_path', type=click.Path(exists=True))
+@click.option('--title', prompt='Название книги', help='Название книги')
+@click.option('--author', prompt='Автор', help='Автор книги')
+def add_daily_book(file_path, title, author):
+    """Загрузить книгу в формате 'Стоицизм на каждый день' (366 записей с датами)"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Add book to database
+        book_id = db.add_book(title, author)
+        click.echo(f'✓ Книга "{title}" добавлена (ID: {book_id})')
+
+        # Parse daily stoicism format
+        click.echo('Парсинг записей по датам...')
+        entries = parse_daily_stoicism_book(content)
+
+        if not entries:
+            click.echo('✗ Не удалось распарсить записи. Проверьте формат файла.', err=True)
+            return
+
+        added_count = 0
+        skipped_duplicates = 0
+        for entry in entries:
+            # Check for duplicate
+            existing = db.find_exact_duplicate(entry['text'])
+            if existing:
+                skipped_duplicates += 1
+                continue
+
+            db.add_quote(
+                text=entry['text'],
+                category='daily',
+                book_id=book_id,
+                quote_author=entry['quote_author'],
+                quote_source=entry['quote_source'],
+                day_of_year=entry['day_of_year']
+            )
+            added_count += 1
+
+        click.echo(f'✓ Добавлено {added_count} записей из категории "Стоицизм на каждый день"')
+        if skipped_duplicates > 0:
+            click.echo(f'⚠ Пропущено {skipped_duplicates} дубликатов')
+        click.echo(f'✓ Всего обработано {len(entries)} записей')
 
     except Exception as e:
         click.echo(f'✗ Ошибка: {str(e)}', err=True)

@@ -34,10 +34,11 @@ class Database:
             CREATE TABLE IF NOT EXISTS quotes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 book_id INTEGER,
-                category TEXT NOT NULL CHECK(category IN ('theory', 'practice', 'quotes')),
+                category TEXT NOT NULL CHECK(category IN ('quotes', 'daily')),
                 text TEXT NOT NULL,
                 quote_author TEXT,
                 quote_source TEXT,
+                day_of_year INTEGER DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE SET NULL
             )
@@ -49,7 +50,7 @@ class Database:
                 user_id INTEGER PRIMARY KEY,
                 username TEXT,
                 first_name TEXT,
-                category_preference TEXT DEFAULT 'all' CHECK(category_preference IN ('theory', 'practice', 'quotes', 'all')),
+                category_preference TEXT DEFAULT 'all' CHECK(category_preference IN ('quotes', 'daily', 'all')),
                 time_slot TEXT DEFAULT 'morning' CHECK(time_slot IN ('morning', 'day', 'evening')),
                 is_active INTEGER DEFAULT 1,
                 registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -65,6 +66,20 @@ class Database:
                 sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
                 FOREIGN KEY (quote_id) REFERENCES quotes (id) ON DELETE CASCADE
+            )
+        ''')
+
+        # User subscriptions table (new subscription system)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                category TEXT NOT NULL CHECK(category IN ('quotes', 'daily')),
+                time_slot TEXT NOT NULL CHECK(time_slot IN ('morning', 'day', 'evening')),
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+                UNIQUE(user_id, category)
             )
         ''')
 
@@ -165,7 +180,8 @@ class Database:
         return quote
 
     def add_quote(self, text: str, category: str, book_id: Optional[int] = None,
-                  quote_author: Optional[str] = None, quote_source: Optional[str] = None) -> int:
+                  quote_author: Optional[str] = None, quote_source: Optional[str] = None,
+                  day_of_year: Optional[int] = None) -> int:
         """Add a new quote (checks for exact duplicates first)"""
         # Check for exact duplicate
         existing = self.find_exact_duplicate(text)
@@ -174,8 +190,8 @@ class Database:
 
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('INSERT INTO quotes (text, category, book_id, quote_author, quote_source) VALUES (?, ?, ?, ?, ?)',
-                      (text, category, book_id, quote_author, quote_source))
+        cursor.execute('INSERT INTO quotes (text, category, book_id, quote_author, quote_source, day_of_year) VALUES (?, ?, ?, ?, ?, ?)',
+                      (text, category, book_id, quote_author, quote_source, day_of_year))
         quote_id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -265,9 +281,29 @@ class Database:
         return quotes
 
     def get_random_quote(self, user_id: int, category: Optional[str] = None) -> Optional[Tuple]:
-        """Get a random quote that hasn't been sent to this user yet"""
+        """Get a random quote that hasn't been sent to this user yet
+
+        For 'daily' category, returns quote for current day of year.
+        For other categories, returns random unsent quote.
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
+
+        # Special handling for 'daily' category - return quote for current day
+        if category == 'daily':
+            from datetime import datetime
+            current_day = datetime.now().timetuple().tm_yday  # Day of year (1-366)
+
+            cursor.execute('''
+                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source
+                FROM quotes q
+                LEFT JOIN books b ON q.book_id = b.id
+                WHERE q.category = 'daily' AND q.day_of_year = ?
+                LIMIT 1
+            ''', (current_day,))
+            quote = cursor.fetchone()
+            conn.close()
+            return quote
 
         if category and category != 'all':
             cursor.execute('''
@@ -398,3 +434,148 @@ class Database:
         conn.commit()
         conn.close()
         return updated
+
+    # Subscription operations
+    def add_subscription(self, user_id: int, category: str, time_slot: str) -> bool:
+        """Add or update a subscription for a user
+
+        Args:
+            user_id: Telegram user ID
+            category: Category to subscribe to ('quotes' or 'daily')
+            time_slot: Time slot ('morning', 'day', 'evening')
+
+        Returns:
+            True if subscription was added/updated successfully
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute('''
+                INSERT INTO user_subscriptions (user_id, category, time_slot, is_active)
+                VALUES (?, ?, ?, 1)
+                ON CONFLICT(user_id, category) DO UPDATE SET
+                    time_slot = excluded.time_slot,
+                    is_active = 1
+            ''', (user_id, category, time_slot))
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error adding subscription: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def remove_subscription(self, user_id: int, category: str) -> bool:
+        """Remove a subscription for a user
+
+        Args:
+            user_id: Telegram user ID
+            category: Category to unsubscribe from
+
+        Returns:
+            True if subscription was removed
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM user_subscriptions WHERE user_id = ? AND category = ?',
+                      (user_id, category))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def get_user_subscriptions(self, user_id: int) -> List[Tuple]:
+        """Get all active subscriptions for a user
+
+        Args:
+            user_id: Telegram user ID
+
+        Returns:
+            List of subscription records
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, category, time_slot, is_active, created_at
+            FROM user_subscriptions
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+        ''', (user_id,))
+        subscriptions = cursor.fetchall()
+        conn.close()
+        return subscriptions
+
+    def get_subscriptions_by_time(self, time_slot: str, category: Optional[str] = None) -> List[Tuple]:
+        """Get all active subscriptions for a specific time slot
+
+        Args:
+            time_slot: Time slot to query
+            category: Optional category filter
+
+        Returns:
+            List of (user_id, category) tuples
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if category:
+            cursor.execute('''
+                SELECT user_id, category
+                FROM user_subscriptions
+                WHERE time_slot = ? AND category = ? AND is_active = 1
+            ''', (time_slot, category))
+        else:
+            cursor.execute('''
+                SELECT user_id, category
+                FROM user_subscriptions
+                WHERE time_slot = ? AND is_active = 1
+            ''', (time_slot,))
+
+        subscriptions = cursor.fetchall()
+        conn.close()
+        return subscriptions
+
+    def toggle_subscription_active(self, user_id: int, category: str, is_active: bool) -> bool:
+        """Toggle subscription active status
+
+        Args:
+            user_id: Telegram user ID
+            category: Category of subscription
+            is_active: New active status
+
+        Returns:
+            True if updated successfully
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE user_subscriptions
+            SET is_active = ?
+            WHERE user_id = ? AND category = ?
+        ''', (1 if is_active else 0, user_id, category))
+        updated = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return updated
+
+    def has_subscription(self, user_id: int, category: str) -> bool:
+        """Check if user has a subscription for a category
+
+        Args:
+            user_id: Telegram user ID
+            category: Category to check
+
+        Returns:
+            True if subscription exists
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT 1 FROM user_subscriptions
+            WHERE user_id = ? AND category = ?
+            LIMIT 1
+        ''', (user_id, category))
+        exists = cursor.fetchone() is not None
+        conn.close()
+        return exists
