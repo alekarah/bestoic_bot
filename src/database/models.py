@@ -203,6 +203,42 @@ class Database:
         conn.close()
         return deleted
 
+    def update_quote(self, quote_id: int, text: Optional[str] = None,
+                     category: Optional[str] = None, quote_author: Optional[str] = None,
+                     quote_source: Optional[str] = None) -> bool:
+        """Update quote fields"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        updates = []
+        params = []
+
+        if text is not None:
+            updates.append('text = ?')
+            params.append(text)
+        if category is not None:
+            updates.append('category = ?')
+            params.append(category)
+        if quote_author is not None:
+            updates.append('quote_author = ?')
+            params.append(quote_author)
+        if quote_source is not None:
+            updates.append('quote_source = ?')
+            params.append(quote_source)
+
+        if not updates:
+            conn.close()
+            return False
+
+        params.append(quote_id)
+        query = f'UPDATE quotes SET {", ".join(updates)} WHERE id = ?'
+
+        cursor.execute(query, params)
+        updated = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return updated
+
     def get_all_quotes(self, category: Optional[str] = None) -> List[Tuple]:
         """Get all quotes, optionally filtered by category"""
         conn = self.get_connection()
