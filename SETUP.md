@@ -49,12 +49,19 @@ cp .env.example .env
 
 Отредактируйте `.env` файл и добавьте:
 - `TELEGRAM_BOT_TOKEN` - токен вашего бота от @BotFather
-- `ADMIN_USER_ID` - ваш Telegram User ID от @userinfobot
+- `ADMIN_USER_IDS` - ваш Telegram User ID (или несколько ID через запятую) от @userinfobot
 
 ```env
 TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
-ADMIN_USER_ID=123456789
+
+# Один администратор:
+ADMIN_USER_IDS=123456789
+
+# Или несколько администраторов (через запятую):
+ADMIN_USER_IDS=123456789,987654321
 ```
+
+**Примечание:** Старый формат `ADMIN_USER_ID` также поддерживается для обратной совместимости.
 
 ## Использование
 

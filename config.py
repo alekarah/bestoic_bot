@@ -5,7 +5,14 @@ load_dotenv()
 
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-ADMIN_USER_ID = int(os.getenv('ADMIN_USER_ID', 0))
+
+# Admin User IDs (supports multiple admins)
+# Can be a single ID or comma-separated list of IDs
+admin_ids_str = os.getenv('ADMIN_USER_IDS', os.getenv('ADMIN_USER_ID', '0'))
+ADMIN_USER_IDS = [int(id.strip()) for id in admin_ids_str.split(',') if id.strip()]
+
+# Backward compatibility - keep ADMIN_USER_ID as the first admin
+ADMIN_USER_ID = ADMIN_USER_IDS[0] if ADMIN_USER_IDS else 0
 
 # Database Configuration
 DATABASE_PATH = 'bestoic_bot.db'

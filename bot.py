@@ -38,14 +38,15 @@ async def post_init(application: Application):
     # Set commands for all users
     await application.bot.set_my_commands(bot_commands)
 
-    # Set admin commands for admin user
+    # Set admin commands for each admin user
     from telegram import BotCommandScopeChat
-    await application.bot.set_my_commands(
-        admin_commands,
-        scope=BotCommandScopeChat(chat_id=config.ADMIN_USER_ID)
-    )
+    for admin_id in config.ADMIN_USER_IDS:
+        await application.bot.set_my_commands(
+            admin_commands,
+            scope=BotCommandScopeChat(chat_id=admin_id)
+        )
 
-    logger.info("Bot menu commands set successfully!")
+    logger.info(f"Bot menu commands set successfully! Admin commands for {len(config.ADMIN_USER_IDS)} admin(s)")
 
 
 def main():

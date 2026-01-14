@@ -25,7 +25,7 @@ def admin_required(func):
     """Decorator to restrict access to admin only"""
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
-        if user_id != config.ADMIN_USER_ID:
+        if user_id not in config.ADMIN_USER_IDS:
             if update.message:
                 await update.message.reply_text("⛔️ У вас нет доступа к этой команде.")
             elif update.callback_query:
