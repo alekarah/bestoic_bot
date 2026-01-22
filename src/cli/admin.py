@@ -218,13 +218,12 @@ def quote():
 
 @quote.command('add')
 @click.option('--text', prompt='Текст цитаты (можно с атрибуцией через - Автор / Источник)', help='Текст цитаты')
-@click.option('--category',
-              prompt='Категория [Теория (t) / Практика (p) / Цитаты (q)]',
-              help='Категория цитаты')
+@click.option('--category', default='quotes', hidden=True, help='Категория цитаты (по умолчанию: quotes)')
 def add_quote(text, category):
     """Добавить новую цитату вручную"""
-    # Normalize category input
-    category = normalize_category(category)
+    # Default category is 'quotes', can be overridden via --category flag if needed
+    if category != 'quotes':
+        category = normalize_category(category)
 
     # Get or create manual quotes book
     manual_book_id = db.get_or_create_manual_book(source='CLI')
@@ -254,14 +253,20 @@ def add_quote(text, category):
 
 
 @quote.command('list')
-@click.option('--category',
-              type=click.Choice(['theory', 'practice', 'quotes', 'all'], case_sensitive=False),
+@click.option('--category', '-c',
+              type=click.Choice(['quotes', 'daily', 'all'], case_sensitive=False),
               default='all',
-              help='Фильтр по категории')
-@click.option('--limit', default=20, help='Количество цитат для показа')
-def list_quotes(category, limit):
-    """Показать все цитаты"""
+              help='Фильтр по категории (quotes/daily/all)')
+@click.option('--limit', '-l', default=20, help='Количество цитат для показа')
+@click.option('--search', '-s', default=None, help='Поиск по тексту цитаты')
+def list_quotes(category, limit, search):
+    """Показать цитаты с фильтрами"""
     quotes = db.get_all_quotes(category if category != 'all' else None)
+
+    # Filter by search text if provided
+    if search:
+        search_lower = search.lower()
+        quotes = [q for q in quotes if search_lower in q['text'].lower()]
 
     if not quotes:
         click.echo('Цитаты не найдены')
@@ -492,9 +497,8 @@ def stats():
     """Показать статистику"""
     books = db.get_all_books()
     all_quotes = db.get_all_quotes()
-    theory_quotes = db.get_all_quotes('theory')
-    practice_quotes = db.get_all_quotes('practice')
     quotes_category = db.get_all_quotes('quotes')
+    daily_category = db.get_all_quotes('daily')
 
     click.echo('\n' + '='*50)
     click.echo('СТАТИСТИКА BESTOIC BOT')
@@ -502,9 +506,8 @@ def stats():
     click.echo(f'Всего книг: {len(books)}')
     click.echo(f'Всего цитат: {len(all_quotes)}')
     click.echo('-'*50)
-    click.echo(f'  Теория: {len(theory_quotes)}')
-    click.echo(f'  Практика: {len(practice_quotes)}')
     click.echo(f'  Цитаты: {len(quotes_category)}')
+    click.echo(f'  Стоицизм на каждый день: {len(daily_category)}')
     click.echo('='*50 + '\n')
 
 

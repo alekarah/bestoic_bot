@@ -124,15 +124,20 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"К сожалению, цитаты из категории '{category_text}' закончились. Попробуйте позже.")
 
 
-async def send_quote(chat_id: int, quote: tuple, context: ContextTypes.DEFAULT_TYPE):
+async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE):
     """Send a formatted quote to user"""
+    # Convert sqlite3.Row to dict if needed (Row doesn't support .get())
+    if hasattr(quote, 'keys'):
+        quote = dict(quote)
+
     message = format_quote_for_telegram(
         quote_text=quote['text'],
         category=quote['category'],
-        quote_author=quote['quote_author'],
-        quote_source=quote['quote_source'],
-        book_title=quote['title'],
-        book_author=quote['author']
+        quote_author=quote.get('quote_author'),
+        quote_source=quote.get('quote_source'),
+        book_title=quote.get('title'),
+        book_author=quote.get('author'),
+        day_of_year=quote.get('day_of_year')
     )
 
     await context.bot.send_message(chat_id=chat_id, text=message)

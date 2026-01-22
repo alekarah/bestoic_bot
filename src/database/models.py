@@ -169,7 +169,7 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.book_id
+            SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year, q.book_id
             FROM quotes q
             LEFT JOIN books b ON q.book_id = b.id
             WHERE q.text = ?
@@ -262,7 +262,7 @@ class Database:
 
         if category and category != 'all':
             cursor.execute('''
-                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.book_id
+                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year, q.book_id
                 FROM quotes q
                 LEFT JOIN books b ON q.book_id = b.id
                 WHERE q.category = ?
@@ -270,7 +270,7 @@ class Database:
             ''', (category,))
         else:
             cursor.execute('''
-                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.book_id
+                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year, q.book_id
                 FROM quotes q
                 LEFT JOIN books b ON q.book_id = b.id
                 ORDER BY q.created_at DESC
@@ -295,7 +295,7 @@ class Database:
             current_day = datetime.now().timetuple().tm_yday  # Day of year (1-366)
 
             cursor.execute('''
-                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source
+                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year
                 FROM quotes q
                 LEFT JOIN books b ON q.book_id = b.id
                 WHERE q.category = 'daily' AND q.day_of_year = ?
@@ -307,7 +307,7 @@ class Database:
 
         if category and category != 'all':
             cursor.execute('''
-                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source
+                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year
                 FROM quotes q
                 LEFT JOIN books b ON q.book_id = b.id
                 WHERE q.category = ?
@@ -319,7 +319,7 @@ class Database:
             ''', (category, user_id))
         else:
             cursor.execute('''
-                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source
+                SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year
                 FROM quotes q
                 LEFT JOIN books b ON q.book_id = b.id
                 WHERE q.id NOT IN (
@@ -338,7 +338,7 @@ class Database:
             # Try again
             if category and category != 'all':
                 cursor.execute('''
-                    SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source
+                    SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year
                     FROM quotes q
                     LEFT JOIN books b ON q.book_id = b.id
                     WHERE q.category = ?
@@ -347,7 +347,7 @@ class Database:
                 ''', (category,))
             else:
                 cursor.execute('''
-                    SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source
+                    SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year
                     FROM quotes q
                     LEFT JOIN books b ON q.book_id = b.id
                     ORDER BY RANDOM()

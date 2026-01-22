@@ -43,7 +43,7 @@ python admin.py stats
 
 ## Управление книгами
 
-### Добавить книгу
+### Добавить книгу с цитатами
 
 ```bash
 python admin.py book add путь/к/файлу.txt
@@ -70,6 +70,34 @@ $ python admin.py book add data/seneca.txt
 ✓ Добавлено 45 цитат из категории "Цитаты"
 ✓ Всего обработано 50 абзацев
 ```
+
+### Добавить книгу "Стоицизм на каждый день" (daily)
+
+**Важно:** Для книг в формате "Стоицизм на каждый день" (с 366 записями по дням года) используйте специальную команду:
+
+```bash
+python admin.py book add-daily путь/к/файлу.txt
+```
+
+Эта команда:
+- Парсит записи по датам (1 ЯНВАРЯ, 2 ЯНВАРЯ, ..., 31 ДЕКАБРЯ)
+- Извлекает заголовок, цитату, атрибуцию и размышление для каждого дня
+- Автоматически привязывает записи к дням года (1-366)
+- Категория устанавливается автоматически как `daily`
+
+**Пример:**
+```bash
+$ python admin.py book add-daily data/daily_stoicism.txt
+Название книги: Стоицизм на каждый день
+Автор: Райан Холидей
+
+✓ Книга "Стоицизм на каждый день" добавлена (ID: 12)
+Парсинг записей по датам...
+✓ Добавлено 366 записей из категории "Стоицизм на каждый день"
+✓ Всего обработано 366 записей
+```
+
+**Формат файла:** См. [data/README.md](data/README.md#специальный-формат-для-категории-стоицизм-на-каждый-день-daily)
 
 ### Показать список книг
 
@@ -155,6 +183,18 @@ python admin.py quote list --category daily
 **С ограничением количества:**
 ```bash
 python admin.py quote list --limit 10
+```
+
+**С поиском по тексту:**
+```bash
+python admin.py quote list --search "препятствие"
+python admin.py quote list -s "Эпиктет"
+```
+
+**Комбинированные фильтры:**
+```bash
+python admin.py quote list --category quotes --limit 10 --search "мудрость"
+python admin.py quote list -c daily -l 5 -s "контроль"
 ```
 
 ### Посмотреть полный текст цитаты
@@ -547,13 +587,15 @@ cp bestoic_bot.db bestoic_bot_backup_$(date +%Y%m%d).db
 python admin.py stats
 
 # Книги
-python admin.py book add <файл>     # Добавить книгу
-python admin.py book list           # Список книг
-python admin.py book delete <ID>    # Удалить книгу
+python admin.py book add <файл>       # Добавить книгу с цитатами
+python admin.py book add-daily <файл> # Добавить книгу "Стоицизм на каждый день"
+python admin.py book list             # Список книг
+python admin.py book delete <ID>      # Удалить книгу
 
 # Цитаты
 python admin.py quote add           # Добавить цитату
 python admin.py quote list          # Список всех цитат
+python admin.py quote list -c quotes -l 10 -s "текст"  # С фильтрами
 python admin.py quote view <ID>     # Посмотреть цитату
 python admin.py quote edit <ID>     # Редактировать
 python admin.py quote delete <ID>   # Удалить

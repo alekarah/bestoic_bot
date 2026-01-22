@@ -56,7 +56,7 @@ async def admin_add_quote_start(update: Update, context: ContextTypes.DEFAULT_TY
 
 @admin_required
 async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive quote text and parse it"""
+    """Receive quote text and save it directly to 'quotes' category"""
     text = update.message.text.strip()
 
     # Parse quote (extract attribution if present)
@@ -74,10 +74,18 @@ async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return ConversationHandler.END
 
-    # Store parsed data in context
-    context.user_data['quote_text'] = quote_text
-    context.user_data['quote_author'] = quote_author
-    context.user_data['quote_source'] = quote_source
+    # Get or create manual quotes book for Telegram
+    manual_book_id = db.get_or_create_manual_book(source='Telegram')
+
+    # Add quote directly to 'quotes' category (no category selection needed)
+    category = 'quotes'
+    quote_id = db.add_quote(
+        text=quote_text,
+        category=category,
+        book_id=manual_book_id,
+        quote_author=quote_author,
+        quote_source=quote_source
+    )
 
     # Show attribution info if found
     attr_info = ""
@@ -87,24 +95,17 @@ async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYP
             attr_parts.append(f"Автор: {quote_author}")
         if quote_source:
             attr_parts.append(f"Источник: {quote_source}")
-        attr_info = "\n\n📌 Атрибуция:\n" + "\n".join(attr_parts)
-
-    # Ask for category
-    keyboard = [
-        [InlineKeyboardButton("💭 Цитаты", callback_data='add_cat_quotes')],
-        [InlineKeyboardButton("📅 Стоицизм на каждый день", callback_data='add_cat_daily')],
-        [InlineKeyboardButton("❌ Отменить", callback_data='add_cat_cancel')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+        attr_info = "\n📌 " + " / ".join(attr_parts)
 
     preview = quote_text[:200] + "..." if len(quote_text) > 200 else quote_text
 
     await update.message.reply_text(
-        f"📝 Цитата получена:\n\n{preview}{attr_info}\n\n"
-        f"Выберите категорию:",
-        reply_markup=reply_markup
+        f"✅ Цитата добавлена!\n\n"
+        f"ID: {quote_id}\n"
+        f"Категория: Цитаты{attr_info}\n\n"
+        f"💬 {preview}"
     )
-    return ADD_CATEGORY
+    return ConversationHandler.END
 
 
 @admin_required
@@ -609,7 +610,7 @@ def get_add_quote_handler():
         entry_points=[CommandHandler('admin_add', admin_add_quote_start)],
         states={
             ADD_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_add_quote_text)],
-            ADD_CATEGORY: [CallbackQueryHandler(admin_add_quote_category, pattern='^add_cat_')],
+            # ADD_CATEGORY state removed - quotes are saved directly to 'quotes' category
         },
         fallbacks=[CommandHandler('cancel', cancel)],
     )

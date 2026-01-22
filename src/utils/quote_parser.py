@@ -56,20 +56,30 @@ def parse_daily_stoicism_book(text: str) -> List[Dict]:
     """
     Parse "Daily Stoicism" book format into individual entries.
 
-    Expected format:
-    1 МАРТА
-    Title
+    Format:
+    DATE (e.g. "1 ЯНВАРЯ")
+    Title (on next line, no empty line after date)
 
-    Quote text
-    Author / Source
+    Quote text (can be multiple lines, no empty lines inside)
 
-    Reflection text
+    Attribution (Author / Source OR just Author name, short single line)
 
-    2 МАРТА
-    ...
+    Reflection text (can be multiple lines)
+
+
+    On 4 specific days (Mar 9, May 22, Oct 13, Nov 1) there are 2 quotes:
+    Quote1
+
+    Attribution1
+
+    Quote2
+
+    Attribution2
+
+    Reflection
 
     Returns:
-        List of dicts with keys: day_of_year, title, quote_text, quote_author, quote_source
+        List of dicts with keys: day_of_year, title, text, quote_author, quote_source
     """
     # Russian month names to numbers
     MONTHS_RU = {
@@ -78,8 +88,59 @@ def parse_daily_stoicism_book(text: str) -> List[Dict]:
         'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12
     }
 
-    # Split by date headers (e.g., "1 МАРТА", "29 ФЕВРАЛЯ")
-    date_pattern = r'(\d+\s+[А-ЯЁ]+)'
+    def is_attribution(text):
+        """
+        Check if text is an attribution line.
+        Attribution is a SHORT, SINGLE LINE with author name and optionally source.
+        Examples: "Эпиктет / Беседы", "Сенека", "Феогнид Мегарский", "Марк Аврелий / Размышления"
+
+        NOT attribution: "Барбара Джордан / лидер правозащитного движения" (sentence continues after /)
+        """
+        text = text.strip()
+        # Must be single line (no newlines)
+        if '\n' in text:
+            return False
+        # Must be SHORT - attribution is typically < 50 chars
+        if len(text) > 50:
+            return False
+        # Must start with capital letter (name)
+        if not text or not text[0].isupper():
+            return False
+        # Should be very short in words (author name 1-3 words + source 1-4 words)
+        words = text.split()
+        if len(words) > 6:
+            return False
+        # If has "/", check that:
+        # 1. Author part is 1-3 words
+        # 2. Source part starts with capital (book title) and is short
+        if '/' in text:
+            parts = text.split('/', 1)
+            author_part = parts[0].strip()
+            source_part = parts[1].strip() if len(parts) > 1 else ''
+            # Author should be 1-3 words (a name)
+            author_words = author_part.split()
+            if len(author_words) > 3:
+                return False
+            # Source should start with capital letter (book title)
+            if source_part and not source_part[0].isupper():
+                return False
+            # Source should be short (1-4 words max, book title)
+            source_words = source_part.split()
+            if len(source_words) > 5:
+                return False
+        return True
+
+    def parse_attribution(text):
+        """Parse attribution into author and source"""
+        text = text.strip()
+        if '/' in text:
+            parts = text.split('/', 1)
+            return parts[0].strip(), parts[1].strip() if len(parts) > 1 else None
+        return text, None
+
+    # Split by date headers (e.g., "1 ЯНВАРЯ", "29 ФЕВРАЛЯ")
+    # Date is at start of line, followed by newline and title
+    date_pattern = r'(\d+\s+[А-ЯЁ]+)\n'
     parts = re.split(date_pattern, text)
 
     entries = []
@@ -116,47 +177,38 @@ def parse_daily_stoicism_book(text: str) -> List[Dict]:
             i += 2
             continue
 
-        # Parse content: Title, Quote+Attribution, Reflection
-        # Split by double newline
-        content_parts = content.split('\n\n')
+        # Parse content by empty lines
+        # Split by double newline (one empty line = paragraph separator)
+        content_parts = [p.strip() for p in content.split('\n\n') if p.strip()]
+
         if len(content_parts) < 2:
             i += 2
             continue
 
+        # [0] = Title
         title = content_parts[0].strip()
 
-        # Find the quote and attribution (middle section)
-        # Quote is the section with attribution (contains author/source)
+        # Find first attribution (it comes after the first quote)
+        # Structure: Title, Quote, Attribution, [Quote2, Attribution2], Reflection
         quote_text = None
         quote_author = None
         quote_source = None
 
-        # Try to find attribution pattern in content
-        for j in range(1, len(content_parts)):
-            part = content_parts[j]
-            # Check if this part has attribution (name / source pattern)
-            if '/' in part or re.search(r'[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\.', part):
-                # This is likely the quote with attribution
-                lines = part.split('\n')
-                if len(lines) >= 2:
-                    quote_text = '\n'.join(lines[:-1]).strip()
-                    attribution = lines[-1].strip()
-                    # Parse attribution
-                    if '/' in attribution:
-                        attr_parts = attribution.split('/', 1)
-                        quote_author = attr_parts[0].strip()
-                        quote_source = attr_parts[1].strip() if len(attr_parts) > 1 else None
-                    else:
-                        quote_author = attribution
-                break
+        # [1] is always the first quote
+        if len(content_parts) >= 2:
+            quote_text = content_parts[1].strip()
+
+        # [2] should be the attribution for the first quote
+        if len(content_parts) >= 3 and is_attribution(content_parts[2]):
+            quote_author, quote_source = parse_attribution(content_parts[2])
 
         if not quote_text:
             # Fallback: use second part as quote
             if len(content_parts) >= 2:
                 quote_text = content_parts[1]
 
-        # Combine all content (title + quote + reflection)
-        full_text = f"{title}\n\n{content}"
+        # Use content as full text (it already starts with the title)
+        full_text = content
 
         entries.append({
             'day_of_year': day_of_year,
@@ -171,11 +223,27 @@ def parse_daily_stoicism_book(text: str) -> List[Dict]:
     return entries
 
 
+def day_of_year_to_date(day_of_year: int) -> str:
+    """Convert day of year (1-366) to Russian date string like '9 марта'"""
+    from datetime import datetime
+
+    MONTHS_RU_GENITIVE = {
+        1: 'января', 2: 'февраля', 3: 'марта', 4: 'апреля',
+        5: 'мая', 6: 'июня', 7: 'июля', 8: 'августа',
+        9: 'сентября', 10: 'октября', 11: 'ноября', 12: 'декабря'
+    }
+
+    # Use leap year to support day 366
+    date = datetime(2024, 1, 1) + __import__('datetime').timedelta(days=day_of_year - 1)
+    return f"{date.day} {MONTHS_RU_GENITIVE[date.month]}"
+
+
 def format_quote_for_telegram(quote_text: str, category: str,
                               quote_author: Optional[str] = None,
                               quote_source: Optional[str] = None,
                               book_title: Optional[str] = None,
-                              book_author: Optional[str] = None) -> str:
+                              book_author: Optional[str] = None,
+                              day_of_year: Optional[int] = None) -> str:
     """
     Format a quote for sending to Telegram with proper styling.
 
@@ -186,6 +254,7 @@ def format_quote_for_telegram(quote_text: str, category: str,
         quote_source: Source extracted from quote itself
         book_title: Title of the book (from database)
         book_author: Author of the book (from database)
+        day_of_year: Day of year (1-366) for daily category
 
     Returns:
         Formatted message string
@@ -195,27 +264,33 @@ def format_quote_for_telegram(quote_text: str, category: str,
         'daily': '📅'
     }
 
-    category_names = {
-        'quotes': 'Цитаты',
-        'daily': 'Стоицизм на каждый день'
-    }
+    # For daily category, show date instead of category name
+    if category == 'daily' and day_of_year:
+        header = f"📅 {day_of_year_to_date(day_of_year)}"
+    else:
+        emoji = category_emoji.get(category, '💬')
+        category_names = {
+            'quotes': 'Цитаты',
+            'daily': 'Стоицизм на каждый день'
+        }
+        header = f"{emoji} {category_names.get(category, category)}"
 
-    emoji = category_emoji.get(category, '💬')
-    category_name = category_names.get(category, category)
+    # Start with header and quote text
+    message = f"{header}\n\n{quote_text}"
 
-    # Start with category and quote text
-    message = f"{emoji} {category_name}\n\n{quote_text}"
-
-    # Add attribution
-    # Priority: quote_author/quote_source > book_author/book_title
-    if quote_author or quote_source:
-        attribution_parts = []
-        if quote_author:
-            attribution_parts.append(quote_author)
-        if quote_source:
-            attribution_parts.append(quote_source)
-        message += f"\n\n— {' / '.join(attribution_parts)}"
-    elif book_title and book_author:
-        message += f"\n\n— {book_author} / {book_title}"
+    # For 'daily' category, attribution is already embedded in the text
+    # Don't add it again at the end
+    if category != 'daily':
+        # Add attribution
+        # Priority: quote_author/quote_source > book_author/book_title
+        if quote_author or quote_source:
+            attribution_parts = []
+            if quote_author:
+                attribution_parts.append(quote_author)
+            if quote_source:
+                attribution_parts.append(quote_source)
+            message += f"\n\n— {' / '.join(attribution_parts)}"
+        elif book_title and book_author:
+            message += f"\n\n— {book_author} / {book_title}"
 
     return message
