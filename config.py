@@ -15,7 +15,8 @@ ADMIN_USER_IDS = [int(id.strip()) for id in admin_ids_str.split(',') if id.strip
 ADMIN_USER_ID = ADMIN_USER_IDS[0] if ADMIN_USER_IDS else 0
 
 # Database Configuration
-DATABASE_PATH = 'bestoic_bot.db'
+# Use environment variable for deployment, fallback to local file for development
+DATABASE_PATH = os.getenv('DATABASE_PATH', 'bestoic_bot.db')
 
 # Time Slots for Notifications
 TIME_SLOTS = {
