@@ -265,18 +265,21 @@ def format_quote_for_telegram(quote_text: str, category: str,
     }
 
     # For daily category, show date instead of category name
+    # For quotes category, no header needed
     if category == 'daily' and day_of_year:
-        header = f"📅 {day_of_year_to_date(day_of_year)}"
+        header = f"📅 {day_of_year_to_date(day_of_year)}\n\n"
+    elif category == 'quotes':
+        header = ""  # No header for regular quotes
     else:
         emoji = category_emoji.get(category, '💬')
         category_names = {
             'quotes': 'Цитаты',
             'daily': 'Стоицизм на каждый день'
         }
-        header = f"{emoji} {category_names.get(category, category)}"
+        header = f"{emoji} {category_names.get(category, category)}\n\n"
 
-    # Start with header and quote text
-    message = f"{header}\n\n{quote_text}"
+    # Start with header (if any) and quote text
+    message = f"{header}{quote_text}"
 
     # For 'daily' category, attribution is already embedded in the text
     # Don't add it again at the end

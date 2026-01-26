@@ -217,19 +217,20 @@ def quote():
 
 
 @quote.command('add')
-@click.option('--text', prompt='Текст цитаты (можно с атрибуцией через - Автор / Источник)', help='Текст цитаты')
-@click.option('--category', default='quotes', hidden=True, help='Категория цитаты (по умолчанию: quotes)')
-def add_quote(text, category):
+@click.option('--text', prompt='Текст цитаты', help='Текст цитаты')
+@click.option('--author', prompt='Автор (например: Марк Аврелий)', help='Автор цитаты')
+@click.option('--source', prompt='Источник (например: Размышления)', default='', help='Источник/книга')
+def add_quote(text, author, source):
     """Добавить новую цитату вручную"""
-    # Default category is 'quotes', can be overridden via --category flag if needed
-    if category != 'quotes':
-        category = normalize_category(category)
+    category = 'quotes'
 
     # Get or create manual quotes book
     manual_book_id = db.get_or_create_manual_book(source='CLI')
 
-    # Parse quote to extract author and source if provided
-    quote_text, quote_author, quote_source = parse_quote(text)
+    # Clean up inputs
+    quote_text = text.strip()
+    quote_author = author.strip() if author else None
+    quote_source = source.strip() if source else None
 
     # Check for existing duplicate before adding
     existing = db.find_exact_duplicate(quote_text)
@@ -245,7 +246,6 @@ def add_quote(text, category):
 
     category_name = CATEGORY_DISPLAY.get(category, category)
     click.echo(f'✓ Цитата добавлена (ID: {quote_id}) в категорию "{category_name}"')
-    click.echo(f'  Книга: Ручные цитаты (CLI)')
     if quote_author:
         click.echo(f'  Автор: {quote_author}')
     if quote_source:
@@ -333,20 +333,16 @@ def view_quote(quote_id):
 @quote.command('edit')
 @click.argument('quote_id', type=int)
 @click.option('--text', prompt='Новый текст цитаты (можно с атрибуцией)', help='Новый текст цитаты')
-@click.option('--category',
-              prompt='Новая категория [Теория (t) / Практика (p) / Цитаты (q)]',
-              help='Новая категория цитаты')
-def edit_quote(quote_id, text, category):
+def edit_quote(quote_id, text):
     """Редактировать цитату"""
-    # Normalize category input
-    category = normalize_category(category)
+    # Category is always 'quotes' for edited quotes
+    category = 'quotes'
 
     # Parse quote to extract author and source if provided
     quote_text, quote_author, quote_source = parse_quote(text)
 
     if db.update_quote(quote_id, quote_text, category, quote_author, quote_source):
-        category_name = CATEGORY_DISPLAY.get(category, category)
-        click.echo(f'✓ Цитата ID:{quote_id} обновлена (категория: {category_name})')
+        click.echo(f'✓ Цитата ID:{quote_id} обновлена')
         if quote_author:
             click.echo(f'  Автор: {quote_author}')
         if quote_source:

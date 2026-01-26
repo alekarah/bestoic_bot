@@ -10,13 +10,12 @@ from telegram.ext import (
     filters
 )
 from src.database.models import Database
-from src.utils.quote_parser import parse_quote
 import config
 
 db = Database()
 
 # Conversation states
-(ADD_TEXT, ADD_CATEGORY, ADD_ATTRIBUTION,
+(ADD_TEXT, ADD_AUTHOR, ADD_SOURCE,
  EDIT_SEARCH, EDIT_SELECT, EDIT_FIELD, EDIT_VALUE,
  DELETE_SEARCH, DELETE_CONFIRM) = range(9)
 
@@ -42,13 +41,7 @@ async def admin_add_quote_start(update: Update, context: ContextTypes.DEFAULT_TY
     """Start adding a new quote"""
     await update.message.reply_text(
         "📝 Добавление новой цитаты\n\n"
-        "Отправьте текст цитаты.\n\n"
-        "Формат атрибуции:\n"
-        "• Автор / Источник / Книга / Глава\n"
-        "• Все части опциональны\n\n"
-        "Пример:\n"
-        "Марк Аврелий / Размышления / Книга 2 / Глава 1\n\n"
-        "Или просто текст цитаты без атрибуции.\n\n"
+        "Отправьте текст цитаты (без атрибуции).\n\n"
         "/cancel - отменить"
     )
     return ADD_TEXT
@@ -56,14 +49,11 @@ async def admin_add_quote_start(update: Update, context: ContextTypes.DEFAULT_TY
 
 @admin_required
 async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive quote text and save it directly to 'quotes' category"""
+    """Receive quote text and ask for author"""
     text = update.message.text.strip()
 
-    # Parse quote (extract attribution if present)
-    quote_text, quote_author, quote_source = parse_quote(text)
-
     # Check for duplicates
-    existing = db.find_exact_duplicate(quote_text)
+    existing = db.find_exact_duplicate(text)
     if existing:
         await update.message.reply_text(
             f"⚠️ Эта цитата уже существует!\n\n"
@@ -74,28 +64,62 @@ async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return ConversationHandler.END
 
+    # Store text for later
+    context.user_data['quote_text'] = text
+
+    await update.message.reply_text(
+        "👤 Введите автора цитаты:\n\n"
+        "Например: Марк Аврелий\n\n"
+        "/cancel - отменить"
+    )
+    return ADD_AUTHOR
+
+
+@admin_required
+async def admin_add_quote_author(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Receive author and ask for source"""
+    author = update.message.text.strip()
+    context.user_data['quote_author'] = author
+
+    await update.message.reply_text(
+        "📖 Введите источник (книгу):\n\n"
+        "Например: Размышления\n\n"
+        "Отправьте - чтобы пропустить\n"
+        "/cancel - отменить"
+    )
+    return ADD_SOURCE
+
+
+@admin_required
+async def admin_add_quote_source(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Receive source and save the quote"""
+    source = update.message.text.strip()
+    if source == '-':
+        source = None
+
+    quote_text = context.user_data.get('quote_text')
+    quote_author = context.user_data.get('quote_author')
+    quote_source = source
+
     # Get or create manual quotes book for Telegram
     manual_book_id = db.get_or_create_manual_book(source='Telegram')
 
-    # Add quote directly to 'quotes' category (no category selection needed)
-    category = 'quotes'
+    # Add quote to database
     quote_id = db.add_quote(
         text=quote_text,
-        category=category,
+        category='quotes',
         book_id=manual_book_id,
         quote_author=quote_author,
         quote_source=quote_source
     )
 
-    # Show attribution info if found
-    attr_info = ""
-    if quote_author or quote_source:
-        attr_parts = []
-        if quote_author:
-            attr_parts.append(f"Автор: {quote_author}")
-        if quote_source:
-            attr_parts.append(f"Источник: {quote_source}")
-        attr_info = "\n📌 " + " / ".join(attr_parts)
+    # Build confirmation message
+    attr_parts = []
+    if quote_author:
+        attr_parts.append(f"Автор: {quote_author}")
+    if quote_source:
+        attr_parts.append(f"Источник: {quote_source}")
+    attr_info = "\n📌 " + " / ".join(attr_parts) if attr_parts else ""
 
     preview = quote_text[:200] + "..." if len(quote_text) > 200 else quote_text
 
@@ -105,6 +129,8 @@ async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYP
         f"Категория: Цитаты{attr_info}\n\n"
         f"💬 {preview}"
     )
+
+    context.user_data.clear()
     return ConversationHandler.END
 
 
@@ -610,7 +636,8 @@ def get_add_quote_handler():
         entry_points=[CommandHandler('admin_add', admin_add_quote_start)],
         states={
             ADD_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_add_quote_text)],
-            # ADD_CATEGORY state removed - quotes are saved directly to 'quotes' category
+            ADD_AUTHOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_add_quote_author)],
+            ADD_SOURCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_add_quote_source)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
     )

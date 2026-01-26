@@ -1,7 +1,7 @@
 import logging
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from src.bot.handlers import start_command, help_command, settings_command, quote_command, button_callback
+from src.bot.handlers import start_command, help_command, settings_command, quote_command, button_callback, favorites_command, favorites_callback
 from src.bot.admin_handlers import get_add_quote_handler, get_delete_quote_handler, get_edit_quote_handler
 from src.bot.scheduler import setup_scheduler
 import config
@@ -20,6 +20,7 @@ async def post_init(application: Application):
     bot_commands = [
         BotCommand("start", "Начать работу с ботом"),
         BotCommand("quote", "Получить случайную цитату"),
+        BotCommand("favorites", "Мои избранные цитаты"),
         BotCommand("settings", "Настроить категорию и время"),
         BotCommand("help", "Помощь и информация"),
     ]
@@ -28,6 +29,7 @@ async def post_init(application: Application):
     admin_commands = [
         BotCommand("start", "Начать работу с ботом"),
         BotCommand("quote", "Получить случайную цитату"),
+        BotCommand("favorites", "Мои избранные цитаты"),
         BotCommand("settings", "Настроить категорию и время"),
         BotCommand("help", "Помощь и информация"),
         BotCommand("admin_add", "➕ Добавить цитату"),
@@ -64,6 +66,7 @@ def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("settings", settings_command))
     application.add_handler(CommandHandler("quote", quote_command))
+    application.add_handler(CommandHandler("favorites", favorites_command))
 
     # Register admin conversation handlers (must be before general callback handler)
     application.add_handler(get_add_quote_handler())
@@ -72,6 +75,9 @@ def main():
 
     # Register callback handler for settings and subscriptions (with pattern to avoid catching admin callbacks)
     application.add_handler(CallbackQueryHandler(button_callback, pattern='^(add_sub_|remove_sub_|change_time_|select_time_|cancel_subscription)'))
+
+    # Register callback handler for favorites
+    application.add_handler(CallbackQueryHandler(favorites_callback, pattern='^(fav_|unfav_|favpage_|favdel_)'))
 
     # Setup scheduler
     scheduler = setup_scheduler(application)

@@ -38,6 +38,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 /start - начать работу с ботом
 /quote - получить случайную цитату
+/favorites - мои избранные цитаты ❤️
 /settings - управление подписками
 /help - это сообщение
 
@@ -52,6 +53,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📬 Система подписок:
 Вы можете подписаться на обе категории и выбрать своё время для каждой!
+
+❤️ Избранное:
+Нажимайте ❤️ под цитатами, чтобы сохранять понравившиеся!
 """
 
     await update.message.reply_text(help_text)
@@ -97,35 +101,26 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /quote command - send random quote"""
+    """Handle /quote command - send random quote from 'quotes' category"""
     user_id = update.effective_user.id
     user = db.get_user(user_id)
 
     if not user:
         db.add_user(user_id, update.effective_user.username, update.effective_user.first_name)
 
-    # Get user's subscriptions to determine which category to use
-    subscriptions = db.get_user_subscriptions(user_id)
-
-    if not subscriptions:
-        # No subscriptions, send a random quote from any category
-        quote = db.get_random_quote(user_id, None)
-        category_text = "случайная"
-    else:
-        # Send from first subscription category
-        category = subscriptions[0]['category']
-        quote = db.get_random_quote(user_id, category)
-        category_text = config.CATEGORIES.get(category, category)
+    # Always send from 'quotes' category (not daily)
+    # Daily quotes are only sent via scheduled subscriptions
+    quote = db.get_random_quote(user_id, 'quotes')
 
     if quote:
-        await send_quote(update.effective_chat.id, quote, context)
+        await send_quote(update.effective_chat.id, quote, context, user_id=user_id)
         db.mark_quote_as_sent(user_id, quote['id'])
     else:
-        await update.message.reply_text(f"К сожалению, цитаты из категории '{category_text}' закончились. Попробуйте позже.")
+        await update.message.reply_text("К сожалению, все цитаты уже были показаны. Попробуйте позже.")
 
 
-async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE):
-    """Send a formatted quote to user"""
+async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, user_id: int = None):
+    """Send a formatted quote to user with favorite button"""
     # Convert sqlite3.Row to dict if needed (Row doesn't support .get())
     if hasattr(quote, 'keys'):
         quote = dict(quote)
@@ -140,7 +135,20 @@ async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE):
         day_of_year=quote.get('day_of_year')
     )
 
-    await context.bot.send_message(chat_id=chat_id, text=message)
+    # Add favorite button if user_id is provided
+    reply_markup = None
+    if user_id:
+        is_fav = db.is_favorite(user_id, quote['id'])
+        if is_fav:
+            button_text = "💔 Убрать из избранного"
+            callback_data = f"unfav_{quote['id']}"
+        else:
+            button_text = "❤️ В избранное"
+            callback_data = f"fav_{quote['id']}"
+        keyboard = [[InlineKeyboardButton(button_text, callback_data=callback_data)]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_markup)
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -237,3 +245,138 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('pending_subscription_category', None)
         context.user_data.pop('pending_subscription_action', None)
         await query.edit_message_text("❌ Отменено.\n\nИспользуй /settings для управления подписками.")
+
+
+async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle favorites-related callbacks (add/remove from favorites, pagination)"""
+    query = update.callback_query
+    user_id = update.effective_user.id
+    data = query.data
+
+    # Add to favorites
+    if data.startswith('fav_'):
+        quote_id = int(data.replace('fav_', ''))
+        db.add_to_favorites(user_id, quote_id)
+        await query.answer("❤️ Добавлено в избранное!")
+
+        # Update button to "remove"
+        keyboard = [[InlineKeyboardButton("💔 Убрать из избранного", callback_data=f"unfav_{quote_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_reply_markup(reply_markup=reply_markup)
+
+    # Remove from favorites
+    elif data.startswith('unfav_'):
+        quote_id = int(data.replace('unfav_', ''))
+        db.remove_from_favorites(user_id, quote_id)
+        await query.answer("💔 Удалено из избранного")
+
+        # Update button to "add"
+        keyboard = [[InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_reply_markup(reply_markup=reply_markup)
+
+    # Favorites pagination
+    elif data.startswith('favpage_'):
+        page = int(data.replace('favpage_', ''))
+        await show_favorites_page(query, user_id, page)
+
+    # Delete from favorites list view
+    elif data.startswith('favdel_'):
+        quote_id = int(data.replace('favdel_', ''))
+        db.remove_from_favorites(user_id, quote_id)
+        await query.answer("🗑 Удалено из избранного")
+        # Refresh current page
+        page = context.user_data.get('favorites_page', 0)
+        await show_favorites_page(query, user_id, page)
+
+
+async def favorites_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /favorites command - show user's favorite quotes"""
+    user_id = update.effective_user.id
+    context.user_data['favorites_page'] = 0
+
+    total = db.count_user_favorites(user_id)
+
+    if total == 0:
+        await update.message.reply_text(
+            "❤️ У вас пока нет избранных цитат.\n\n"
+            "Нажимайте ❤️ под цитатами, чтобы сохранять их!"
+        )
+        return
+
+    favorites = db.get_user_favorites(user_id, limit=1, offset=0)
+    if favorites:
+        await send_favorite_quote(update.message, favorites[0], 0, total)
+
+
+async def show_favorites_page(query, user_id: int, page: int):
+    """Show a specific page of favorites"""
+    total = db.count_user_favorites(user_id)
+
+    if total == 0:
+        await query.edit_message_text(
+            "❤️ У вас пока нет избранных цитат.\n\n"
+            "Нажимайте ❤️ под цитатами, чтобы сохранять их!"
+        )
+        return
+
+    # Ensure page is within bounds
+    if page < 0:
+        page = 0
+    if page >= total:
+        page = total - 1
+
+    favorites = db.get_user_favorites(user_id, limit=1, offset=page)
+    if favorites:
+        fav = favorites[0]
+        message = format_favorite_message(fav, page, total)
+        keyboard = build_favorites_keyboard(fav['id'], page, total)
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(message, reply_markup=reply_markup)
+
+
+async def send_favorite_quote(message_obj, fav, page: int, total: int):
+    """Send a favorite quote with navigation"""
+    msg = format_favorite_message(fav, page, total)
+    keyboard = build_favorites_keyboard(fav['id'], page, total)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await message_obj.reply_text(msg, reply_markup=reply_markup)
+
+
+def format_favorite_message(fav, page: int, total: int) -> str:
+    """Format a favorite quote for display"""
+    # Convert Row to dict if needed
+    if hasattr(fav, 'keys'):
+        fav = dict(fav)
+
+    message = format_quote_for_telegram(
+        quote_text=fav['text'],
+        category=fav['category'],
+        quote_author=fav.get('quote_author'),
+        quote_source=fav.get('quote_source'),
+        book_title=fav.get('title'),
+        book_author=fav.get('author'),
+        day_of_year=fav.get('day_of_year')
+    )
+
+    message = f"❤️ Избранное ({page + 1}/{total})\n\n{message}"
+    return message
+
+
+def build_favorites_keyboard(quote_id: int, page: int, total: int) -> list:
+    """Build keyboard for favorites navigation"""
+    keyboard = []
+
+    # Navigation row
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton("◀️", callback_data=f"favpage_{page - 1}"))
+    if page < total - 1:
+        nav_row.append(InlineKeyboardButton("▶️", callback_data=f"favpage_{page + 1}"))
+    if nav_row:
+        keyboard.append(nav_row)
+
+    # Delete button
+    keyboard.append([InlineKeyboardButton("🗑 Удалить из избранного", callback_data=f"favdel_{quote_id}")])
+
+    return keyboard

@@ -29,7 +29,7 @@ async def send_scheduled_quotes(context: ContextTypes.DEFAULT_TYPE, time_slot: s
 
         if quote:
             try:
-                await send_quote(user_id, quote, context)
+                await send_quote(user_id, quote, context, user_id=user_id)
                 # Only mark as sent for non-daily quotes
                 # Daily quotes should be available every day regardless of sent status
                 if category != 'daily':
