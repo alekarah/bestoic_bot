@@ -495,16 +495,210 @@ def stats():
     all_quotes = db.get_all_quotes()
     quotes_category = db.get_all_quotes('quotes')
     daily_category = db.get_all_quotes('daily')
+    library_count = db.count_library_books()
 
     click.echo('\n' + '='*50)
     click.echo('СТАТИСТИКА BESTOIC BOT')
     click.echo('='*50)
-    click.echo(f'Всего книг: {len(books)}')
+    click.echo(f'Всего книг (источники цитат): {len(books)}')
     click.echo(f'Всего цитат: {len(all_quotes)}')
     click.echo('-'*50)
     click.echo(f'  Цитаты: {len(quotes_category)}')
     click.echo(f'  Стоицизм на каждый день: {len(daily_category)}')
+    click.echo('-'*50)
+    click.echo(f'Библиотека (скачиваемые книги): {library_count}')
     click.echo('='*50 + '\n')
+
+
+# Library commands (downloadable books)
+@cli.group()
+def library():
+    """Управление библиотекой книг для скачивания"""
+    pass
+
+
+@library.command('add')
+@click.option('--author', prompt='Автор', help='Автор книги')
+@click.option('--title', prompt='Название книги', help='Название книги')
+@click.option('--description', prompt='Описание (можно пустое)', default='', help='Описание книги')
+@click.option('--buy-url', prompt='Ссылка на покупку (можно пустое)', default='', help='Ссылка на покупку бумажной версии')
+def library_add(author, title, description, buy_url):
+    """Добавить книгу в библиотеку"""
+    book_id = db.add_library_book(
+        title=title.strip(),
+        author=author.strip(),
+        description=description.strip() if description else None,
+        buy_url=buy_url.strip() if buy_url else None
+    )
+    click.echo(f'✓ Книга "{author} — {title}" добавлена в библиотеку (ID: {book_id})')
+    click.echo(f'  Теперь добавьте файлы: python admin.py library add-file {book_id} <путь_к_файлу>')
+
+
+@library.command('list')
+def library_list():
+    """Показать все книги в библиотеке"""
+    books = db.get_all_library_books()
+
+    if not books:
+        click.echo('Библиотека пуста')
+        return
+
+    click.echo('\n' + '='*90)
+    click.echo(f'{"ID":<5} {"Автор":<25} {"Название":<40} {"Форматы"}')
+    click.echo('='*90)
+
+    for book in books:
+        # Get file formats for this book
+        files = db.get_book_files(book['id'])
+        formats = ', '.join([f['format'] for f in files]) if files else '—'
+        click.echo(f'{book["id"]:<5} {book["author"][:24]:<25} {book["title"][:39]:<40} {formats}')
+
+    click.echo('='*90)
+    click.echo(f'Всего книг: {len(books)}\n')
+
+
+@library.command('view')
+@click.argument('book_id', type=int)
+def library_view(book_id):
+    """Показать детали книги"""
+    book = db.get_library_book(book_id)
+
+    if not book:
+        click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
+        return
+
+    click.echo('\n' + '='*60)
+    click.echo(f'ID: {book["id"]}')
+    click.echo(f'Автор: {book["author"]}')
+    click.echo(f'Название: {book["title"]}')
+
+    if book['description']:
+        click.echo('-'*60)
+        click.echo(f'Описание:\n{book["description"]}')
+
+    if book['buy_url']:
+        click.echo('-'*60)
+        click.echo(f'Купить: {book["buy_url"]}')
+
+    # Show files
+    files = db.get_book_files(book_id)
+    click.echo('-'*60)
+    click.echo('Файлы:')
+    if files:
+        for f in files:
+            size = f'({f["file_size"] // 1024} KB)' if f['file_size'] else ''
+            cached = '✓ кэш' if f['file_id'] else ''
+            click.echo(f'  • {f["format"].upper()}: {f["file_path"]} {size} {cached}')
+    else:
+        click.echo('  Нет загруженных файлов')
+
+    click.echo('='*60 + '\n')
+
+
+@library.command('edit')
+@click.argument('book_id', type=int)
+@click.option('--title', default=None, help='Новое название')
+@click.option('--author', default=None, help='Новый автор')
+@click.option('--description', default=None, help='Новое описание')
+@click.option('--buy-url', default=None, help='Новая ссылка на покупку')
+def library_edit(book_id, title, author, description, buy_url):
+    """Редактировать книгу в библиотеке"""
+    book = db.get_library_book(book_id)
+    if not book:
+        click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
+        return
+
+    # If no options provided, prompt for each
+    if not any([title, author, description, buy_url]):
+        click.echo(f'Текущее название: {book["title"]}')
+        title = click.prompt('Новое название', default=book['title'])
+
+        click.echo(f'Текущий автор: {book["author"]}')
+        author = click.prompt('Новый автор', default=book['author'])
+
+        click.echo(f'Текущее описание: {book["description"] or "(пусто)"}')
+        description = click.prompt('Новое описание', default=book['description'] or '')
+
+        click.echo(f'Текущая ссылка: {book["buy_url"] or "(пусто)"}')
+        buy_url = click.prompt('Новая ссылка на покупку', default=book['buy_url'] or '')
+
+    if db.update_library_book(book_id, title, author, description, buy_url):
+        click.echo(f'✓ Книга ID:{book_id} обновлена')
+    else:
+        click.echo(f'✗ Ошибка при обновлении', err=True)
+
+
+@library.command('delete')
+@click.argument('book_id', type=int)
+def library_delete(book_id):
+    """Удалить книгу из библиотеки"""
+    book = db.get_library_book(book_id)
+    if not book:
+        click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
+        return
+
+    click.echo(f'\nКнига: {book["title"]} - {book["author"]}')
+
+    files = db.get_book_files(book_id)
+    if files:
+        click.echo(f'Файлов: {len(files)}')
+
+    if not click.confirm('Удалить книгу и все её файлы?'):
+        click.echo('Отменено')
+        return
+
+    if db.delete_library_book(book_id):
+        click.echo(f'✓ Книга ID:{book_id} удалена')
+    else:
+        click.echo(f'✗ Ошибка при удалении', err=True)
+
+
+@library.command('add-file')
+@click.argument('book_id', type=int)
+@click.argument('file_path', type=click.Path(exists=True))
+@click.option('--format', 'file_format', default=None, help='Формат файла (fb2, epub, mobi, pdf). Определяется автоматически по расширению.')
+def library_add_file(book_id, file_path, file_format):
+    """Добавить файл книги"""
+    book = db.get_library_book(book_id)
+    if not book:
+        click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
+        return
+
+    # Determine format from extension if not provided
+    if not file_format:
+        ext = os.path.splitext(file_path)[1].lower().lstrip('.')
+        if ext in ['fb2', 'epub', 'mobi', 'pdf']:
+            file_format = ext
+        else:
+            click.echo(f'✗ Неизвестный формат: {ext}. Укажите --format', err=True)
+            return
+
+    # Get file size
+    file_size = os.path.getsize(file_path)
+
+    # Store absolute path
+    abs_path = os.path.abspath(file_path)
+
+    db.add_book_file(book_id, file_format, file_path=abs_path, file_size=file_size)
+    click.echo(f'✓ Файл {file_format.upper()} добавлен для книги "{book["title"]}"')
+    click.echo(f'  Путь: {abs_path}')
+    click.echo(f'  Размер: {file_size // 1024} KB')
+
+
+@library.command('remove-file')
+@click.argument('book_id', type=int)
+@click.argument('file_format', type=click.Choice(['fb2', 'epub', 'mobi', 'pdf'], case_sensitive=False))
+def library_remove_file(book_id, file_format):
+    """Удалить файл книги"""
+    book = db.get_library_book(book_id)
+    if not book:
+        click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
+        return
+
+    if db.delete_book_file(book_id, file_format.lower()):
+        click.echo(f'✓ Файл {file_format.upper()} удалён')
+    else:
+        click.echo(f'✗ Файл не найден', err=True)
 
 
 if __name__ == '__main__':

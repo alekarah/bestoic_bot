@@ -51,3 +51,7 @@ SUBSCRIPTION_CONFIRMATIONS = {
         'evening': 'Идеально! Вечером в 20:00 — глубокое размышление дня. Завершайте день с мудростью!'
     }
 }
+
+# Library settings
+BOOKS_PER_PAGE = 5  # Number of books per page in /books command
+BOOK_FILES_PATH = os.getenv('BOOK_FILES_PATH', 'data/books')  # Path to store book files

@@ -1,5 +1,6 @@
 """Admin handlers for Telegram bot quote management"""
 
+import functools
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes,
@@ -22,6 +23,7 @@ db = Database()
 
 def admin_required(func):
     """Decorator to restrict access to admin only"""
+    @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         if user_id not in config.ADMIN_USER_IDS:
@@ -267,10 +269,12 @@ async def admin_delete_quote_search(update: Update, context: ContextTypes.DEFAUL
         # Show multiple options
         keyboard = []
         for q in matching_quotes[:10]:
-            short_text = q['text'][:50] + "..." if len(q['text']) > 50 else q['text']
+            short_text = q['text'][:40] + "..." if len(q['text']) > 40 else q['text']
+            category_emoji = "📅" if q['category'] == 'daily' else "💭"
+            category_short = "Daily" if q['category'] == 'daily' else "Quotes"
             keyboard.append([
                 InlineKeyboardButton(
-                    f"ID:{q['id']} - {short_text}",
+                    f"ID:{q['id']} {category_emoji}{category_short} - {short_text}",
                     callback_data=f'del_select_{q["id"]}'
                 )
             ])
@@ -419,10 +423,12 @@ async def admin_edit_quote_search(update: Update, context: ContextTypes.DEFAULT_
         # Show multiple options
         keyboard = []
         for q in matching_quotes[:10]:
-            short_text = q['text'][:50] + "..." if len(q['text']) > 50 else q['text']
+            short_text = q['text'][:40] + "..." if len(q['text']) > 40 else q['text']
+            category_emoji = "📅" if q['category'] == 'daily' else "💭"
+            category_short = "Daily" if q['category'] == 'daily' else "Quotes"
             keyboard.append([
                 InlineKeyboardButton(
-                    f"ID:{q['id']} - {short_text}",
+                    f"ID:{q['id']} {category_emoji}{category_short} - {short_text}",
                     callback_data=f'edit_select_{q["id"]}'
                 )
             ])
@@ -457,7 +463,10 @@ async def show_edit_menu(update: Update, quote: dict, is_callback: bool = True):
         [InlineKeyboardButton("📂 Категория", callback_data='edit_field_category')],
         [InlineKeyboardButton("👤 Автор", callback_data='edit_field_author')],
         [InlineKeyboardButton("📖 Источник", callback_data='edit_field_source')],
-        [InlineKeyboardButton("✅ Готово", callback_data='edit_done')]
+        [
+            InlineKeyboardButton("✅ Готово", callback_data='edit_done'),
+            InlineKeyboardButton("❌ Отмена", callback_data='edit_cancel')
+        ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -506,6 +515,11 @@ async def admin_edit_quote_field(update: Update, context: ContextTypes.DEFAULT_T
     """Handle field selection for editing"""
     query = update.callback_query
     await query.answer()
+
+    if query.data == 'edit_cancel':
+        await query.edit_message_text("❌ Редактирование отменено.")
+        context.user_data.clear()
+        return ConversationHandler.END
 
     if query.data == 'edit_done':
         await query.edit_message_text("✅ Редактирование завершено!")
@@ -662,7 +676,7 @@ def get_edit_quote_handler():
         states={
             EDIT_SEARCH: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_edit_quote_search)],
             EDIT_SELECT: [CallbackQueryHandler(admin_edit_quote_select, pattern='^edit_select_|^edit_cancel$')],
-            EDIT_FIELD: [CallbackQueryHandler(admin_edit_quote_field, pattern='^edit_field_|^edit_done$')],
+            EDIT_FIELD: [CallbackQueryHandler(admin_edit_quote_field, pattern='^edit_field_|^edit_done$|^edit_cancel$')],
             EDIT_VALUE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, admin_edit_quote_value),
                 CallbackQueryHandler(admin_edit_quote_value, pattern='^edit_cat_')

@@ -38,6 +38,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 /start - начать работу с ботом
 /quote - получить случайную цитату
+/books - библиотека книг для скачивания
 /favorites - мои избранные цитаты ❤️
 /settings - управление подписками
 /help - это сообщение
@@ -56,6 +57,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ❤️ Избранное:
 Нажимайте ❤️ под цитатами, чтобы сохранять понравившиеся!
+
+📖 Библиотека:
+Скачивайте книги по стоицизму в разных форматах (fb2, epub, pdf)
 """
 
     await update.message.reply_text(help_text)
