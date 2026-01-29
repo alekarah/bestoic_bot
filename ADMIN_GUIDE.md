@@ -478,14 +478,14 @@ python admin.py quote find-duplicates [--threshold 90]
 #### Шаг 0: Создайте папку для книг (если её нет)
 
 ```bash
-ssh root@155.212.190.192
+ssh root@YOUR_SERVER_IP
 mkdir -p /home/botuser/bestoic_bot/data/books
 exit
 ```
 
 Или проверьте, что папка существует:
 ```bash
-ssh root@155.212.190.192 "ls -la /home/botuser/bestoic_bot/data/"
+ssh root@YOUR_SERVER_IP "ls -la /home/botuser/bestoic_bot/data/"
 ```
 
 Исправь владельца папки, если необходимо с root на botuser:
@@ -497,28 +497,28 @@ chown -R botuser:botuser /home/botuser/bestoic_bot/data/books
 
 ```bash
 # Загрузить один файл
-scp "path/to/book.fb2" root@155.212.190.192:/home/botuser/bestoic_bot/data/books/
+scp "path/to/book.fb2" root@YOUR_SERVER_IP:/home/botuser/bestoic_bot/data/books/
 
 # Загрузить несколько файлов
-scp "path/to/book1.fb2" "path/to/book2.epub" root@155.212.190.192:/home/botuser/bestoic_bot/data/books/
+scp "path/to/book1.fb2" "path/to/book2.epub" root@YOUR_SERVER_IP:/home/botuser/bestoic_bot/data/books/
 
 # Загрузить все файлы из папки
-scp path/to/books/* root@155.212.190.192:/home/botuser/bestoic_bot/data/books/
+scp path/to/books/* root@YOUR_SERVER_IP:/home/botuser/bestoic_bot/data/books/
 ```
 
 **Для Windows PowerShell:**
 ```powershell
 # Один файл
-scp "D:\books\Сенека-Письма.fb2" root@155.212.190.192:/home/botuser/bestoic_bot/data/books/
+scp "D:\books\Сенека-Письма.fb2" root@YOUR_SERVER_IP:/home/botuser/bestoic_bot/data/books/
 
 # Все файлы из папки (без кавычек для маски)
-scp D:\books\* root@155.212.190.192:/home/botuser/bestoic_bot/data/books/
+scp D:\books\* root@YOUR_SERVER_IP:/home/botuser/bestoic_bot/data/books/
 ```
 
 #### Вариант 2: Через SFTP
 
 ```bash
-sftp root@155.212.190.192
+sftp root@YOUR_SERVER_IP
 cd /home/botuser/bestoic_bot/data/books
 put "path/to/book.fb2"
 exit
@@ -752,22 +752,22 @@ $ python admin.py library delete 1
 **Шаг 1: Убедиться, что папка существует**
 ```bash
 # Проверить, есть ли папка
-ssh root@155.212.190.192 "ls -la /home/botuser/bestoic_bot/data/"
+ssh root@YOUR_SERVER_IP "ls -la /home/botuser/bestoic_bot/data/"
 
 # Если нет, создать
-ssh root@155.212.190.192 "mkdir -p /home/botuser/bestoic_bot/data/books"
+ssh root@YOUR_SERVER_IP "mkdir -p /home/botuser/bestoic_bot/data/books"
 ```
 
 **Шаг 2: Загрузить файлы книги на сервер**
 ```bash
 # С локального компьютера загрузить файлы на сервер
-scp "D:\books\Сенека-Письма.fb2" root@155.212.190.192:/home/botuser/bestoic_bot/data/books/
-scp "D:\books\Сенека-Письма.epub" root@155.212.190.192:/home/botuser/bestoic_bot/data/books/
+scp "D:\books\Сенека-Письма.fb2" root@YOUR_SERVER_IP:/home/botuser/bestoic_bot/data/books/
+scp "D:\books\Сенека-Письма.epub" root@YOUR_SERVER_IP:/home/botuser/bestoic_bot/data/books/
 ```
 
 **Шаг 3: Подключиться к серверу**
 ```bash
-ssh root@155.212.190.192
+ssh root@YOUR_SERVER_IP
 cd /home/botuser/bestoic_bot
 ```
 
@@ -805,7 +805,7 @@ git commit -m "Add new book to library"
 git push
 
 # На сервере
-ssh root@155.212.190.192
+ssh root@YOUR_SERVER_IP
 cd /home/botuser/bestoic_bot
 git pull
 # Бот автоматически увидит новую книгу

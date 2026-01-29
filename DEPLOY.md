@@ -214,3 +214,99 @@ timedatectl
 # Установить московское время
 timedatectl set-timezone Europe/Moscow
 ```
+
+---
+
+## Резервное копирование
+
+### Автоматический бэкап
+
+На сервере настроен автоматический ежедневный бэкап базы данных в 4:00 утра (MSK).
+
+**Настройка:**
+- Скрипт: `/home/botuser/backup_db.sh`
+- Директория бэкапов: `/home/botuser/backups/`
+- Хранятся последние 7 дней
+- Автоматическое сжатие (gzip)
+- Логирование: `/home/botuser/backups/backup.log`
+
+**Проверить бэкапы:**
+```bash
+ssh botuser@YOUR_SERVER_IP "ls -lh /home/botuser/backups/"
+```
+
+**Просмотреть лог:**
+```bash
+ssh botuser@YOUR_SERVER_IP "cat /home/botuser/backups/backup.log"
+```
+
+**Запустить бэкап вручную:**
+```bash
+ssh botuser@YOUR_SERVER_IP "/home/botuser/backup_db.sh"
+```
+
+### Восстановление из бэкапа
+
+**1. Скачать бэкап на локальный компьютер:**
+```bash
+scp botuser@YOUR_SERVER_IP:/home/botuser/backups/bestoic_bot_YYYY-MM-DD_HH-MM-SS.db.gz D:\backups\
+```
+
+**2. Распаковать локально:**
+```bash
+# Windows (PowerShell)
+gzip -d D:\backups\bestoic_bot_YYYY-MM-DD_HH-MM-SS.db.gz
+
+# Linux/Mac
+gunzip D:\backups\bestoic_bot_YYYY-MM-DD_HH-MM-SS.db.gz
+```
+
+**3. Восстановить на сервере (если нужно):**
+```bash
+# Остановить бота
+ssh botuser@YOUR_SERVER_IP "sudo systemctl stop bot"
+
+# Сделать резервную копию текущей БД
+ssh botuser@YOUR_SERVER_IP "cp /home/botuser/bestoic_bot/bestoic_bot.db /home/botuser/bestoic_bot/bestoic_bot.db.before_restore"
+
+# Скопировать бэкап из архива
+ssh botuser@YOUR_SERVER_IP "gunzip -c /home/botuser/backups/bestoic_bot_YYYY-MM-DD_HH-MM-SS.db.gz > /home/botuser/bestoic_bot/bestoic_bot.db"
+
+# Запустить бота
+ssh botuser@YOUR_SERVER_IP "sudo systemctl start bot"
+```
+
+**4. Проверить статус:**
+```bash
+ssh botuser@YOUR_SERVER_IP "sudo systemctl status bot"
+```
+
+### Ручной бэкап (дополнительно)
+
+Для важных изменений рекомендуется делать ручной бэкап перед:
+- Массовым добавлением/удалением цитат
+- Обновлением кода бота
+- Изменением структуры базы данных
+
+```bash
+# Скачать текущую БД
+scp botuser@YOUR_SERVER_IP:/home/botuser/bestoic_bot/bestoic_bot.db D:\backups\bestoic_bot_manual_$(date +%Y%m%d).db
+```
+
+### Настройка cron (уже настроено)
+
+Бэкапы запускаются автоматически через cron:
+```bash
+# Посмотреть настройки cron
+ssh botuser@YOUR_SERVER_IP "crontab -l"
+
+# Вывод:
+# 0 4 * * * /home/botuser/backup_db.sh
+```
+
+**Изменить время бэкапа:**
+```bash
+ssh botuser@YOUR_SERVER_IP "crontab -e"
+# Изменить время в формате: минута час день месяц день_недели
+# Например, 0 2 * * * = каждый день в 2:00
+```
