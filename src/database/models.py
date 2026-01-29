@@ -104,6 +104,7 @@ class Database:
                 author TEXT NOT NULL,
                 description TEXT,
                 buy_url TEXT,
+                display_order INTEGER DEFAULT 999,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -122,6 +123,12 @@ class Database:
                 UNIQUE(library_book_id, format)
             )
         ''')
+
+        # Migration: Add display_order column if it doesn't exist
+        cursor.execute("PRAGMA table_info(library_books)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'display_order' not in columns:
+            cursor.execute('ALTER TABLE library_books ADD COLUMN display_order INTEGER DEFAULT 999')
 
         conn.commit()
         conn.close()
@@ -803,12 +810,34 @@ class Database:
         conn.close()
         return deleted
 
+    def set_book_display_order(self, book_id: int, order: int) -> bool:
+        """Set display order for a library book
+
+        Args:
+            book_id: ID of the book
+            order: Display order (lower numbers appear first)
+
+        Returns:
+            True if updated successfully, False if book not found
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE library_books
+            SET display_order = ?
+            WHERE id = ?
+        ''', (order, book_id))
+        updated = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return updated
+
     def get_library_book(self, book_id: int) -> Optional[Tuple]:
         """Get a single library book by ID"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, title, author, description, buy_url, created_at
+            SELECT id, title, author, description, buy_url, display_order, created_at
             FROM library_books
             WHERE id = ?
         ''', (book_id,))
@@ -817,22 +846,22 @@ class Database:
         return book
 
     def get_all_library_books(self, limit: int = None, offset: int = 0) -> List[Tuple]:
-        """Get all library books with pagination"""
+        """Get all library books with pagination, sorted by display_order then author"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
         if limit:
             cursor.execute('''
-                SELECT id, title, author, description, buy_url, created_at
+                SELECT id, title, author, description, buy_url, display_order, created_at
                 FROM library_books
-                ORDER BY author, title
+                ORDER BY display_order ASC, author ASC, title ASC
                 LIMIT ? OFFSET ?
             ''', (limit, offset))
         else:
             cursor.execute('''
-                SELECT id, title, author, description, buy_url, created_at
+                SELECT id, title, author, description, buy_url, display_order, created_at
                 FROM library_books
-                ORDER BY author, title
+                ORDER BY display_order ASC, author ASC, title ASC
             ''')
 
         books = cursor.fetchall()

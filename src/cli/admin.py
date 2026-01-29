@@ -543,17 +543,18 @@ def library_list():
         click.echo('Библиотека пуста')
         return
 
-    click.echo('\n' + '='*90)
-    click.echo(f'{"ID":<5} {"Автор":<25} {"Название":<40} {"Форматы"}')
-    click.echo('='*90)
+    click.echo('\n' + '='*100)
+    click.echo(f'{"ID":<5} {"Порядок":<8} {"Автор":<25} {"Название":<35} {"Форматы"}')
+    click.echo('='*100)
 
     for book in books:
         # Get file formats for this book
         files = db.get_book_files(book['id'])
         formats = ', '.join([f['format'] for f in files]) if files else '—'
-        click.echo(f'{book["id"]:<5} {book["author"][:24]:<25} {book["title"][:39]:<40} {formats}')
+        order_str = f'[{book["display_order"]}]' if book["display_order"] < 999 else '—'
+        click.echo(f'{book["id"]:<5} {order_str:<8} {book["author"][:24]:<25} {book["title"][:34]:<35} {formats}')
 
-    click.echo('='*90)
+    click.echo('='*100)
     click.echo(f'Всего книг: {len(books)}\n')
 
 
@@ -699,6 +700,28 @@ def library_remove_file(book_id, file_format):
         click.echo(f'✓ Файл {file_format.upper()} удалён')
     else:
         click.echo(f'✗ Файл не найден', err=True)
+
+
+@library.command('set-order')
+@click.argument('book_id', type=int)
+@click.argument('order', type=int)
+def library_set_order(book_id, order):
+    """Установить порядок отображения книги
+
+    Книги с меньшим номером показываются первыми.
+    Например: 1, 2, 3 для топ-книг, 999 для обычных книг (по умолчанию).
+    """
+    book = db.get_library_book(book_id)
+    if not book:
+        click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
+        return
+
+    if db.set_book_display_order(book_id, order):
+        click.echo(f'✓ Порядок отображения для книги "{book["author"]} — {book["title"]}" установлен: {order}')
+        if order <= 10:
+            click.echo(f'  📌 Эта книга будет показана в начале списка')
+    else:
+        click.echo(f'✗ Не удалось обновить порядок', err=True)
 
 
 if __name__ == '__main__':

@@ -446,8 +446,6 @@ async def admin_edit_quote_search(update: Update, context: ContextTypes.DEFAULT_
 async def show_edit_menu(update: Update, quote: dict, is_callback: bool = True):
     """Show edit menu for a quote"""
     preview = quote['text'][:200] + "..." if len(quote['text']) > 200 else quote['text']
-    category_name = config.CATEGORIES.get(quote['category'], quote['category'])
-    book_info = f"📚 Книга: {quote['title']}\n" if quote['title'] else ""
 
     attr_info = ""
     if quote['quote_author'] or quote['quote_source']:
@@ -456,11 +454,11 @@ async def show_edit_menu(update: Update, quote: dict, is_callback: bool = True):
             parts.append(f"Автор: {quote['quote_author']}")
         if quote['quote_source']:
             parts.append(f"Источник: {quote['quote_source']}")
-        attr_info = "\n📌 Атрибуция:\n" + "\n".join(parts) + "\n"
+        attr_info = "📌 Атрибуция:\n" + "\n".join(parts) + "\n\n"
 
     keyboard = [
+        [InlineKeyboardButton("👁 Показать полностью", callback_data='edit_show_full')],
         [InlineKeyboardButton("📝 Текст", callback_data='edit_field_text')],
-        [InlineKeyboardButton("📂 Категория", callback_data='edit_field_category')],
         [InlineKeyboardButton("👤 Автор", callback_data='edit_field_author')],
         [InlineKeyboardButton("📖 Источник", callback_data='edit_field_source')],
         [
@@ -472,9 +470,7 @@ async def show_edit_menu(update: Update, quote: dict, is_callback: bool = True):
 
     message_text = (
         f"✏️ Редактирование цитаты ID:{quote['id']}\n\n"
-        f"📂 Категория: {category_name}\n"
-        f"{book_info}"
-        f"{attr_info}\n"
+        f"{attr_info}"
         f"💬 Текст:\n{preview}\n\n"
         f"Что хотите изменить?"
     )
@@ -525,6 +521,33 @@ async def admin_edit_quote_field(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text("✅ Редактирование завершено!")
         context.user_data.clear()
         return ConversationHandler.END
+
+    # Handle "Show full text" button
+    if query.data == 'edit_show_full':
+        quote_id = context.user_data.get('edit_quote_id')
+        quotes = db.get_all_quotes()
+        quote = next((q for q in quotes if q['id'] == quote_id), None)
+
+        if not quote:
+            await query.edit_message_text("❌ Ошибка: цитата не найдена.")
+            return ConversationHandler.END
+
+        # Send full text in a new message
+        full_text = quote['text']
+        attr_parts = []
+        if quote['quote_author']:
+            attr_parts.append(quote['quote_author'])
+        if quote['quote_source']:
+            attr_parts.append(quote['quote_source'])
+        attribution = " / ".join(attr_parts) if attr_parts else ""
+
+        full_message = f"📖 Полный текст цитаты ID:{quote['id']}\n\n{full_text}"
+        if attribution:
+            full_message += f"\n\n— {attribution}"
+
+        await query.message.reply_text(full_message)
+        # Return to edit menu
+        return await show_edit_menu(update, quote)
 
     field = query.data.replace('edit_field_', '')
     context.user_data['edit_field'] = field
@@ -676,7 +699,7 @@ def get_edit_quote_handler():
         states={
             EDIT_SEARCH: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_edit_quote_search)],
             EDIT_SELECT: [CallbackQueryHandler(admin_edit_quote_select, pattern='^edit_select_|^edit_cancel$')],
-            EDIT_FIELD: [CallbackQueryHandler(admin_edit_quote_field, pattern='^edit_field_|^edit_done$|^edit_cancel$')],
+            EDIT_FIELD: [CallbackQueryHandler(admin_edit_quote_field, pattern='^edit_field_|^edit_done$|^edit_cancel$|^edit_show_full$')],
             EDIT_VALUE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, admin_edit_quote_value),
                 CallbackQueryHandler(admin_edit_quote_value, pattern='^edit_cat_')
