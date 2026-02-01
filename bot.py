@@ -2,7 +2,7 @@ import logging
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from src.bot.handlers import start_command, help_command, settings_command, quote_command, button_callback, favorites_command, favorites_callback
-from src.bot.admin_handlers import get_add_quote_handler, get_delete_quote_handler, get_edit_quote_handler
+from src.bot.admin_handlers import get_add_quote_handler, get_delete_quote_handler, get_edit_quote_handler, get_admin_users_handler
 from src.bot.library_handlers import books_command, library_callback
 from src.bot.scheduler import setup_scheduler
 import config
@@ -38,6 +38,7 @@ async def post_init(application: Application):
         BotCommand("admin_add", "➕ Добавить цитату"),
         BotCommand("admin_edit", "✏️ Редактировать цитату"),
         BotCommand("admin_delete", "🗑 Удалить цитату"),
+        BotCommand("admin_users", "👥 Статистика пользователей"),
     ]
 
     # Set commands for all users
@@ -76,6 +77,7 @@ def main():
     application.add_handler(get_add_quote_handler())
     application.add_handler(get_delete_quote_handler())
     application.add_handler(get_edit_quote_handler())
+    application.add_handler(get_admin_users_handler())
 
     # Register callback handler for settings and subscriptions (with pattern to avoid catching admin callbacks)
     application.add_handler(CallbackQueryHandler(button_callback, pattern='^(add_sub_|remove_sub_|change_time_|select_time_|cancel_subscription)'))

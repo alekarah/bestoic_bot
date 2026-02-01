@@ -988,3 +988,113 @@ class Database:
         conn.commit()
         conn.close()
         return deleted
+
+    # User statistics methods
+    def get_all_users_with_subscriptions(self) -> List[dict]:
+        """Get all users with their subscription information"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT
+                u.user_id,
+                u.username,
+                u.first_name,
+                u.is_active,
+                u.registered_at,
+                GROUP_CONCAT(s.category || ':' || s.time_slot, ', ') as subscriptions,
+                COUNT(DISTINCT f.id) as favorites_count
+            FROM users u
+            LEFT JOIN user_subscriptions s ON u.user_id = s.user_id
+            LEFT JOIN favorites f ON u.user_id = f.user_id
+            GROUP BY u.user_id
+            ORDER BY u.registered_at DESC
+        ''')
+        users = cursor.fetchall()
+        conn.close()
+        return [dict(user) for user in users]
+
+    def get_user_statistics(self) -> dict:
+        """Get overall user statistics"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Total users
+        cursor.execute('SELECT COUNT(*) FROM users')
+        total_users = cursor.fetchone()[0]
+
+        # Active users (with at least one subscription)
+        cursor.execute('''
+            SELECT COUNT(DISTINCT user_id)
+            FROM user_subscriptions
+        ''')
+        active_subscribers = cursor.fetchone()[0]
+
+        # Users by category
+        cursor.execute('''
+            SELECT category, COUNT(DISTINCT user_id) as count
+            FROM user_subscriptions
+            GROUP BY category
+        ''')
+        by_category = {row['category']: row['count'] for row in cursor.fetchall()}
+
+        # Users by time slot
+        cursor.execute('''
+            SELECT time_slot, COUNT(DISTINCT user_id) as count
+            FROM user_subscriptions
+            GROUP BY time_slot
+        ''')
+        by_time_slot = {row['time_slot']: row['count'] for row in cursor.fetchall()}
+
+        conn.close()
+
+        return {
+            'total_users': total_users,
+            'active_subscribers': active_subscribers,
+            'by_category': by_category,
+            'by_time_slot': by_time_slot
+        }
+
+    def get_user_detail(self, user_id: int) -> Optional[dict]:
+        """Get detailed information about a specific user"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Get user info
+        cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+        user = cursor.fetchone()
+
+        if not user:
+            conn.close()
+            return None
+
+        user_dict = dict(user)
+
+        # Get subscriptions
+        cursor.execute('''
+            SELECT category, time_slot, created_at
+            FROM user_subscriptions
+            WHERE user_id = ?
+        ''', (user_id,))
+        user_dict['subscriptions'] = [dict(row) for row in cursor.fetchall()]
+
+        # Get favorites count
+        cursor.execute('''
+            SELECT COUNT(*) as count
+            FROM favorites
+            WHERE user_id = ?
+        ''', (user_id,))
+        user_dict['favorites_count'] = cursor.fetchone()['count']
+
+        # Get last sent quote
+        cursor.execute('''
+            SELECT sent_at
+            FROM sent_quotes
+            WHERE user_id = ?
+            ORDER BY sent_at DESC
+            LIMIT 1
+        ''', (user_id,))
+        last_sent = cursor.fetchone()
+        user_dict['last_activity'] = last_sent['sent_at'] if last_sent else None
+
+        conn.close()
+        return user_dict

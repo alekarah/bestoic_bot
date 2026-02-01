@@ -707,3 +707,57 @@ def get_edit_quote_handler():
         },
         fallbacks=[CommandHandler('cancel', cancel)],
     )
+
+
+@admin_required
+async def admin_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show user statistics for admin"""
+    stats = db.get_user_statistics()
+    users_data = db.get_all_users_with_subscriptions()
+
+    # Build message
+    message = "📊 *СТАТИСТИКА ПОЛЬЗОВАТЕЛЕЙ*\n\n"
+    message += f"👥 Всего пользователей: *{stats['total_users']}*\n"
+    message += f"✅ С активными подписками: *{stats['active_subscribers']}*\n"
+
+    if stats['by_category']:
+        message += "\n📂 *По категориям:*\n"
+        for cat, count in stats['by_category'].items():
+            emoji = '💭' if cat == 'quotes' else '📅'
+            cat_name = 'Цитаты' if cat == 'quotes' else 'Daily'
+            message += f"   {emoji} {cat_name}: {count}\n"
+
+    if stats['by_time_slot']:
+        message += "\n⏰ *По времени:*\n"
+        for time, count in stats['by_time_slot'].items():
+            time_name = {'morning': 'Утро (8:00)', 'day': 'День (14:00)', 'evening': 'Вечер (20:00)'}.get(time, time)
+            message += f"   {time_name}: {count}\n"
+
+    # Show last 10 users
+    if users_data:
+        message += "\n👤 *Последние пользователи:*\n"
+        for i, user in enumerate(users_data[:10], 1):
+            username = f"@{user['username']}" if user['username'] else user['first_name'] or f"ID:{user['user_id']}"
+
+            # Parse subscriptions
+            subs = user['subscriptions'] or '—'
+            if subs != '—':
+                sub_parts = []
+                for sub in subs.split(', '):
+                    if ':' in sub:
+                        cat, time = sub.split(':')
+                        emoji = '💭' if cat == 'quotes' else '📅'
+                        time_str = {'morning': '8:00', 'day': '14:00', 'evening': '20:00'}.get(time, time)
+                        sub_parts.append(f"{emoji}{time_str}")
+                subs = ', '.join(sub_parts) if sub_parts else '—'
+
+            message += f"{i}. {username}: {subs}\n"
+
+    message += f"\n_Используй CLI для подробной информации:_\n`python admin.py users list`"
+
+    await update.message.reply_text(message, parse_mode='Markdown')
+
+
+def get_admin_users_handler():
+    """Get handler for /admin_users command"""
+    return CommandHandler('admin_users', admin_users_command)
