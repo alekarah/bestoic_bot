@@ -1098,3 +1098,54 @@ class Database:
 
         conn.close()
         return user_dict
+
+    def get_favorites_statistics(self, limit: int = 10) -> dict:
+        """Get statistics about favorites
+
+        Args:
+            limit: Number of top quotes to return
+
+        Returns:
+            Dictionary with favorites statistics
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Get top quotes by favorites count (only non-zero)
+        cursor.execute('''
+            SELECT q.id, q.text, q.category, q.quote_author, q.quote_source,
+                   COUNT(f.id) as favorites_count
+            FROM quotes q
+            INNER JOIN favorites f ON q.id = f.quote_id
+            GROUP BY q.id
+            HAVING favorites_count > 0
+            ORDER BY favorites_count DESC, q.id
+            LIMIT ?
+        ''', (limit,))
+        top_quotes = [dict(row) for row in cursor.fetchall()]
+
+        # Get statistics by category
+        cursor.execute('''
+            SELECT q.category, COUNT(DISTINCT f.quote_id) as unique_quotes
+            FROM favorites f
+            INNER JOIN quotes q ON f.quote_id = q.id
+            GROUP BY q.category
+        ''')
+        by_category = {row['category']: row['unique_quotes'] for row in cursor.fetchall()}
+
+        # Get total statistics
+        cursor.execute('SELECT COUNT(*) as total FROM quotes')
+        total_quotes = cursor.fetchone()['total']
+
+        cursor.execute('SELECT COUNT(DISTINCT quote_id) as total FROM favorites')
+        quotes_in_favorites = cursor.fetchone()['total']
+
+        conn.close()
+
+        return {
+            'top_quotes': top_quotes,
+            'by_category': by_category,
+            'total_quotes': total_quotes,
+            'quotes_in_favorites': quotes_in_favorites,
+            'never_favorited': total_quotes - quotes_in_favorites
+        }

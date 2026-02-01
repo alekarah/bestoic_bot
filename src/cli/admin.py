@@ -488,6 +488,52 @@ def find_duplicates(threshold):
             click.echo('Обе цитаты сохранены\n')
 
 
+@quote.command('stats')
+@click.option('--limit', '-l', default=10, type=int, help='Количество цитат в топе')
+def quote_stats(limit):
+    """Показать статистику по избранному"""
+    stats = db.get_favorites_statistics(limit)
+
+    click.echo('\n' + '='*80)
+    click.echo('СТАТИСТИКА ПО ИЗБРАННОМУ')
+    click.echo('='*80)
+
+    # Top quotes
+    if stats['top_quotes']:
+        click.echo(f'\nТОП-{len(stats["top_quotes"])} ЦИТАТ В ИЗБРАННОМ:\n')
+        for i, quote in enumerate(stats['top_quotes'], 1):
+            category_name = 'Daily' if quote['category'] == 'daily' else 'Quotes'
+            preview = quote['text'][:80] + '...' if len(quote['text']) > 80 else quote['text']
+
+            click.echo(f'{i}. [{quote["favorites_count"]} раз] ID:{quote["id"]} ({category_name})')
+            click.echo(f'   "{preview}"')
+            if quote['quote_author'] or quote['quote_source']:
+                attr_parts = []
+                if quote['quote_author']:
+                    attr_parts.append(quote['quote_author'])
+                if quote['quote_source']:
+                    attr_parts.append(quote['quote_source'])
+                click.echo(f'   — {", ".join(attr_parts)}')
+            click.echo()
+    else:
+        click.echo('\nНет цитат в избранном\n')
+
+    # By category
+    if stats['by_category']:
+        click.echo('ПО КАТЕГОРИЯМ:')
+        for category, count in stats['by_category'].items():
+            category_name = 'Quotes' if category == 'quotes' else 'Daily'
+            click.echo(f'   {category_name}: {count} цитат в избранном')
+        click.echo()
+
+    # Overall statistics
+    click.echo('ОБЩАЯ СТАТИСТИКА:')
+    click.echo(f'   Всего цитат: {stats["total_quotes"]}')
+    click.echo(f'   Хотя бы раз в избранном: {stats["quotes_in_favorites"]} ({stats["quotes_in_favorites"]/stats["total_quotes"]*100:.1f}%)')
+    click.echo(f'   Никогда не добавляли: {stats["never_favorited"]} ({stats["never_favorited"]/stats["total_quotes"]*100:.1f}%)')
+    click.echo('='*80 + '\n')
+
+
 @cli.command('stats')
 def stats():
     """Показать статистику"""
@@ -755,14 +801,14 @@ def users_list(limit):
         # Parse subscriptions
         subs = user['subscriptions'] or '—'
         if subs != '—':
-            # Format: "quotes:morning, daily:evening" -> "💭8:00, 📅20:00"
+            # Format: "quotes:morning, daily:evening" -> "Quotes 8:00, Daily 14:00"
             sub_parts = []
             for sub in subs.split(', '):
                 if ':' in sub:
                     cat, time = sub.split(':')
-                    emoji = '💭' if cat == 'quotes' else '📅'
+                    cat_name = 'Quotes' if cat == 'quotes' else 'Daily'
                     time_str = {'morning': '8:00', 'day': '14:00', 'evening': '20:00'}.get(time, time)
-                    sub_parts.append(f"{emoji}{time_str}")
+                    sub_parts.append(f"{cat_name} {time_str}")
             subs = ', '.join(sub_parts) if sub_parts else '—'
 
         favorites = str(user['favorites_count']) if user['favorites_count'] else '0'

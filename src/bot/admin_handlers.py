@@ -753,11 +753,62 @@ async def admin_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             message += f"{i}. {username}: {subs}\n"
 
-    message += f"\n_Используй CLI для подробной информации:_\n`python admin.py users list`"
-
     await update.message.reply_text(message, parse_mode='Markdown')
 
 
 def get_admin_users_handler():
     """Get handler for /admin_users command"""
     return CommandHandler('admin_users', admin_users_command)
+
+
+@admin_required
+async def admin_quote_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show quote statistics (favorites)"""
+    _ = context  # unused
+    stats = db.get_favorites_statistics(limit=10)
+
+    message = "📊 *СТАТИСТИКА ПО ИЗБРАННОМУ*\n\n"
+
+    # Top quotes
+    if stats['top_quotes']:
+        message += f"💎 *ТОП-{len(stats['top_quotes'])} ЦИТАТ:*\n\n"
+        for i, quote in enumerate(stats['top_quotes'], 1):
+            category_emoji = '📅' if quote['category'] == 'daily' else '💭'
+            preview = quote['text'][:100] + '...' if len(quote['text']) > 100 else quote['text']
+
+            message += f"{i}. *[{quote['favorites_count']} раз]* ID:{quote['id']} {category_emoji}\n"
+            message += f"   _{preview}_\n"
+            if quote['quote_author'] or quote['quote_source']:
+                attr_parts = []
+                if quote['quote_author']:
+                    attr_parts.append(quote['quote_author'])
+                if quote['quote_source']:
+                    attr_parts.append(quote['quote_source'])
+                message += f"   — {', '.join(attr_parts)}\n"
+            message += "\n"
+    else:
+        message += "Нет цитат в избранном\n\n"
+
+    # By category
+    if stats['by_category']:
+        message += "📈 *ПО КАТЕГОРИЯМ:*\n"
+        for category, count in stats['by_category'].items():
+            emoji = '💭' if category == 'quotes' else '📅'
+            cat_name = 'Quotes' if category == 'quotes' else 'Daily'
+            message += f"   {emoji} {cat_name}: {count} цитат\n"
+        message += "\n"
+
+    # Overall statistics
+    message += "📊 *ОБЩАЯ СТАТИСТИКА:*\n"
+    message += f"   Всего цитат: {stats['total_quotes']}\n"
+    percent_in_fav = stats['quotes_in_favorites']/stats['total_quotes']*100 if stats['total_quotes'] > 0 else 0
+    message += f"   В избранном: {stats['quotes_in_favorites']} ({percent_in_fav:.1f}%)\n"
+    percent_never = stats['never_favorited']/stats['total_quotes']*100 if stats['total_quotes'] > 0 else 0
+    message += f"   Ни разу не добавляли: {stats['never_favorited']} ({percent_never:.1f}%)"
+
+    await update.message.reply_text(message, parse_mode='Markdown')
+
+
+def get_admin_quote_stats_handler():
+    """Get handler for /admin_quote_stats command"""
+    return CommandHandler('admin_quote_stats', admin_quote_stats_command)
