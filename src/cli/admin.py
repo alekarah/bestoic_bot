@@ -287,8 +287,9 @@ def add_quote(text, author, source):
               default='all',
               help='Фильтр по категории (quotes/daily/all)')
 @click.option('--limit', '-l', default=20, help='Количество цитат для показа')
+@click.option('--offset', '-o', default=0, help='Пропустить первых N цитат')
 @click.option('--search', '-s', default=None, help='Поиск по тексту цитаты')
-def list_quotes(category, limit, search):
+def list_quotes(category, limit, offset, search):
     """Показать цитаты с фильтрами"""
     quotes = db.get_all_quotes(category if category != 'all' else None)
 
@@ -301,11 +302,18 @@ def list_quotes(category, limit, search):
         click.echo('Цитаты не найдены')
         return
 
-    click.echo(f'\nНайдено цитат: {len(quotes)}')
-    click.echo(f'Показано первых: {min(limit, len(quotes))}\n')
+    total = len(quotes)
+    quotes = quotes[offset:offset + limit]
+
+    if not quotes:
+        click.echo(f'Цитаты не найдены (offset {offset} превышает общее количество {total})')
+        return
+
+    click.echo(f'\nНайдено цитат: {total}')
+    click.echo(f'Показано: {offset + 1}-{offset + len(quotes)}\n')
     click.echo('='*80)
 
-    for i, quote in enumerate(quotes[:limit], 1):
+    for i, quote in enumerate(quotes, offset + 1):
         book_info = f'{quote["title"]} - {quote["author"]}' if quote["title"] else 'Без книги'
         category_name = CATEGORY_DISPLAY.get(quote["category"], quote["category"])
         click.echo(f'\nID: {quote["id"]} | Категория: {category_name} | Книга: {book_info}')

@@ -2,10 +2,18 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from src.database.models import Database
 from src.utils.quote_parser import format_quote_for_telegram
+from urllib.parse import quote as url_quote
 import config
 
 
 db = Database()
+
+
+def build_share_url(text: str) -> str:
+    """Build t.me/share URL for sharing quote"""
+    # Add bot link to the text
+    share_text = f"{text}\n\n🔗 t.me/{config.BOT_USERNAME}"
+    return f"https://t.me/share/url?url=&text={url_quote(share_text)}"
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -133,7 +141,7 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, user_id: int = None):
-    """Send a formatted quote to user with favorite button"""
+    """Send a formatted quote to user with favorite and share buttons"""
     # Convert sqlite3.Row to dict if needed (Row doesn't support .get())
     if hasattr(quote, 'keys'):
         quote = dict(quote)
@@ -148,17 +156,24 @@ async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, us
         day_of_year=quote.get('day_of_year')
     )
 
-    # Add favorite button if user_id is provided
+    # Build keyboard with favorite and share buttons
     reply_markup = None
     if user_id:
         is_fav = db.is_favorite(user_id, quote['id'])
         if is_fav:
-            button_text = "💔 Убрать из избранного"
-            callback_data = f"unfav_{quote['id']}"
+            fav_button_text = "💔 Убрать из избранного"
+            fav_callback_data = f"unfav_{quote['id']}"
         else:
-            button_text = "❤️ В избранное"
-            callback_data = f"fav_{quote['id']}"
-        keyboard = [[InlineKeyboardButton(button_text, callback_data=callback_data)]]
+            fav_button_text = "❤️ В избранное"
+            fav_callback_data = f"fav_{quote['id']}"
+
+        # Build share URL (bot link is added inside build_share_url)
+        share_url = build_share_url(message)
+
+        keyboard = [
+            [InlineKeyboardButton(fav_button_text, callback_data=fav_callback_data)],
+            [InlineKeyboardButton("📤 Поделиться", url=share_url)]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
     await context.bot.send_message(chat_id=chat_id, text=message, reply_markup=reply_markup)
@@ -345,7 +360,17 @@ async def show_favorites_page(query, user_id: int, page: int):
     if favorites:
         fav = favorites[0]
         message = format_favorite_message(fav, page, total)
-        keyboard = build_favorites_keyboard(fav['id'], page, total)
+        # Get quote text for sharing (without the header and bot link)
+        share_text = format_quote_for_telegram(
+            quote_text=dict(fav)['text'] if hasattr(fav, 'keys') else fav['text'],
+            category=dict(fav)['category'] if hasattr(fav, 'keys') else fav['category'],
+            quote_author=dict(fav).get('quote_author') if hasattr(fav, 'keys') else fav.get('quote_author'),
+            quote_source=dict(fav).get('quote_source') if hasattr(fav, 'keys') else fav.get('quote_source'),
+            book_title=dict(fav).get('title') if hasattr(fav, 'keys') else fav.get('title'),
+            book_author=dict(fav).get('author') if hasattr(fav, 'keys') else fav.get('author'),
+            day_of_year=dict(fav).get('day_of_year') if hasattr(fav, 'keys') else fav.get('day_of_year')
+        )
+        keyboard = build_favorites_keyboard(fav['id'], page, total, share_text)
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(message, reply_markup=reply_markup)
 
@@ -353,7 +378,17 @@ async def show_favorites_page(query, user_id: int, page: int):
 async def send_favorite_quote(message_obj, fav, page: int, total: int):
     """Send a favorite quote with navigation"""
     msg = format_favorite_message(fav, page, total)
-    keyboard = build_favorites_keyboard(fav['id'], page, total)
+    # Get quote text for sharing (without the header and bot link)
+    share_text = format_quote_for_telegram(
+        quote_text=dict(fav)['text'] if hasattr(fav, 'keys') else fav['text'],
+        category=dict(fav)['category'] if hasattr(fav, 'keys') else fav['category'],
+        quote_author=dict(fav).get('quote_author') if hasattr(fav, 'keys') else fav.get('quote_author'),
+        quote_source=dict(fav).get('quote_source') if hasattr(fav, 'keys') else fav.get('quote_source'),
+        book_title=dict(fav).get('title') if hasattr(fav, 'keys') else fav.get('title'),
+        book_author=dict(fav).get('author') if hasattr(fav, 'keys') else fav.get('author'),
+        day_of_year=dict(fav).get('day_of_year') if hasattr(fav, 'keys') else fav.get('day_of_year')
+    )
+    keyboard = build_favorites_keyboard(fav['id'], page, total, share_text)
     reply_markup = InlineKeyboardMarkup(keyboard)
     await message_obj.reply_text(msg, reply_markup=reply_markup)
 
@@ -378,7 +413,7 @@ def format_favorite_message(fav, page: int, total: int) -> str:
     return message
 
 
-def build_favorites_keyboard(quote_id: int, page: int, total: int) -> list:
+def build_favorites_keyboard(quote_id: int, page: int, total: int, share_text: str = None) -> list:
     """Build keyboard for favorites navigation"""
     keyboard = []
 
@@ -393,5 +428,10 @@ def build_favorites_keyboard(quote_id: int, page: int, total: int) -> list:
 
     # Delete button
     keyboard.append([InlineKeyboardButton("🗑 Удалить из избранного", callback_data=f"favdel_{quote_id}")])
+
+    # Share button
+    if share_text:
+        share_url = build_share_url(share_text)
+        keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
 
     return keyboard

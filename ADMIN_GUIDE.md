@@ -187,6 +187,13 @@ python admin.py quote list --category daily
 python admin.py quote list --limit 10
 ```
 
+**Со смещением (пагинация):**
+```bash
+python admin.py quote list --offset 20              # Пропустить первые 20 цитат
+python admin.py quote list --limit 10 --offset 20   # Показать цитаты 21-30
+python admin.py quote list -l 10 -o 20              # Короткий вариант
+```
+
 **С поиском по тексту:**
 ```bash
 python admin.py quote list --search "препятствие"
@@ -197,6 +204,7 @@ python admin.py quote list -s "Эпиктет"
 ```bash
 python admin.py quote list --category quotes --limit 10 --search "мудрость"
 python admin.py quote list -c daily -l 5 -s "контроль"
+python admin.py quote list -c quotes -l 10 -o 50   # Цитаты 51-60 из категории quotes
 ```
 
 ### Посмотреть полный текст цитаты
@@ -1152,7 +1160,7 @@ python admin.py book delete <ID>      # Удалить книгу
 # Цитаты
 python admin.py quote add           # Добавить цитату
 python admin.py quote list          # Список всех цитат
-python admin.py quote list -c quotes -l 10 -s "текст"  # С фильтрами
+python admin.py quote list -c quotes -l 10 -o 20 -s "текст"  # С фильтрами
 python admin.py quote view <ID>     # Посмотреть цитату
 python admin.py quote edit <ID>     # Редактировать
 python admin.py quote delete <ID>   # Удалить

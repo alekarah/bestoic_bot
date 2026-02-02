@@ -68,3 +68,6 @@ LIBRARY_CATEGORIES = {
     'classic': 'Классические труды',
     'modern': 'Современные авторы'
 }
+
+# Bot username for sharing
+BOT_USERNAME = os.getenv('BOT_USERNAME', 'bestoic_bot')
