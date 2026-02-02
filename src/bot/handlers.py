@@ -9,8 +9,16 @@ import config
 db = Database()
 
 
-def build_share_url(text: str) -> str:
-    """Build t.me/share URL for sharing quote"""
+def build_share_url(text: str, max_length: int = 500) -> str:
+    """Build t.me/share URL for sharing quote.
+
+    Telegram has URL length limits for inline buttons (~2048 chars).
+    We limit text to max_length chars to keep URL reasonable.
+    """
+    # Truncate text if too long (URL-encoded text can be 3-6x longer)
+    if len(text) > max_length:
+        text = text[:max_length].rsplit(' ', 1)[0] + '...'
+
     # Add bot link to the text
     share_text = f"{text}\n\n🔗 t.me/{config.BOT_USERNAME}"
     # URL encode with safe='' to encode all special characters
@@ -318,11 +326,6 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         keyboard = [[InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")]]
         if share_url:
             keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_reply_markup(reply_markup=reply_markup)
-
-        # Update button to "add"
-        keyboard = [[InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_reply_markup(reply_markup=reply_markup)
 
