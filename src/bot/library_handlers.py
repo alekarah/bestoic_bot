@@ -12,16 +12,21 @@ async def books_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_books_page(update.message, context, page=0)
 
 
-async def show_books_page(message_or_query, context: ContextTypes.DEFAULT_TYPE, page: int = 0, edit: bool = False):
+async def show_books_page(message_or_query, context: ContextTypes.DEFAULT_TYPE, page: int = 0, edit: bool = False, category: str = None):
     """Show a page of books from the library"""
-    total = db.count_library_books()
+    total = db.count_library_books(category=category)
 
     if total == 0:
-        text = "📚 Библиотека пока пуста.\n\nКниги скоро появятся!"
-        if edit:
-            await message_or_query.edit_message_text(text)
+        if category:
+            text = "📚 В этой категории пока нет книг."
         else:
-            await message_or_query.reply_text(text)
+            text = "📚 Библиотека пока пуста.\n\nКниги скоро появятся!"
+        keyboard = [[InlineKeyboardButton("« Назад", callback_data="lib_back")]] if category else []
+        reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+        if edit:
+            await message_or_query.edit_message_text(text, reply_markup=reply_markup)
+        else:
+            await message_or_query.reply_text(text, reply_markup=reply_markup)
         return
 
     # Calculate pagination
@@ -35,10 +40,14 @@ async def show_books_page(message_or_query, context: ContextTypes.DEFAULT_TYPE, 
     if page >= total_pages:
         page = total_pages - 1
 
-    books = db.get_all_library_books(limit=per_page, offset=offset)
+    books = db.get_all_library_books(limit=per_page, offset=offset, category=category)
 
     # Build message
-    text = f"📚 Библиотека ({page + 1}/{total_pages})\n\n"
+    if category:
+        cat_name = config.LIBRARY_CATEGORIES.get(category, category)
+        text = f"📚 {cat_name} ({page + 1}/{total_pages})\n\n"
+    else:
+        text = f"📚 Библиотека ({page + 1}/{total_pages})\n\n"
 
     # Build keyboard
     keyboard = []
@@ -51,20 +60,28 @@ async def show_books_page(message_or_query, context: ContextTypes.DEFAULT_TYPE, 
         # Add book button - Author first, then title
         author_part = book['author'][:15] if len(book['author']) <= 15 else book['author'][:15]
         title_part = book['title'][:25] if len(book['title']) <= 25 else book['title'][:22] + "..."
-        button_text = f"👤 {author_part} — {title_part}"
+        button_text = f"{author_part} — {title_part}"
         keyboard.append([InlineKeyboardButton(button_text, callback_data=f"lib_book_{book['id']}")])
 
     # Navigation row
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton("◀️ Назад", callback_data=f"lib_page_{page - 1}"))
+        nav_row.append(InlineKeyboardButton("◀️ Назад", callback_data=f"lib_cpage_{category}_{page - 1}" if category else f"lib_page_{page - 1}"))
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton("Вперёд ▶️", callback_data=f"lib_page_{page + 1}"))
+        nav_row.append(InlineKeyboardButton("Вперёд ▶️", callback_data=f"lib_cpage_{category}_{page + 1}" if category else f"lib_page_{page + 1}"))
     if nav_row:
         keyboard.append(nav_row)
 
-    # Filter by author button
+    # Filter buttons - show all three options
     keyboard.append([InlineKeyboardButton("👤 По авторам", callback_data="lib_authors")])
+    keyboard.append([
+        InlineKeyboardButton("📜 Классические труды", callback_data="lib_cat_classic"),
+        InlineKeyboardButton("✍️ Современные авторы", callback_data="lib_cat_modern")
+    ])
+
+    # Back button if in category view
+    if category:
+        keyboard.append([InlineKeyboardButton("« Все книги", callback_data="lib_back")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -86,10 +103,22 @@ async def library_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         page = int(data.replace('lib_page_', ''))
         await show_books_page(query, context, page=page, edit=True)
 
+    # Category page navigation (lib_cpage_CATEGORY_PAGE)
+    elif data.startswith('lib_cpage_'):
+        parts = data.replace('lib_cpage_', '').rsplit('_', 1)
+        category = parts[0]
+        page = int(parts[1])
+        await show_books_page(query, context, page=page, edit=True, category=category)
+
     # Show book details
     elif data.startswith('lib_book_'):
         book_id = int(data.replace('lib_book_', ''))
         await show_book_details(query, book_id)
+
+    # Filter by category
+    elif data.startswith('lib_cat_'):
+        category = data.replace('lib_cat_', '')
+        await show_books_page(query, context, page=0, edit=True, category=category)
 
     # Show authors list
     elif data == 'lib_authors':

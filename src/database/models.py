@@ -130,6 +130,10 @@ class Database:
         if 'display_order' not in columns:
             cursor.execute('ALTER TABLE library_books ADD COLUMN display_order INTEGER DEFAULT 999')
 
+        # Migration: Add category column to library_books if it doesn't exist
+        if 'category' not in columns:
+            cursor.execute('ALTER TABLE library_books ADD COLUMN category TEXT DEFAULT NULL')
+
         conn.commit()
         conn.close()
 
@@ -742,7 +746,7 @@ class Database:
 
     # Library books operations
     def add_library_book(self, title: str, author: str, description: str = None,
-                         buy_url: str = None) -> int:
+                         buy_url: str = None, category: str = None) -> int:
         """Add a new book to the library
 
         Args:
@@ -750,6 +754,7 @@ class Database:
             author: Book author
             description: Book description
             buy_url: URL to buy paper version
+            category: Book category (classic/modern)
 
         Returns:
             book_id of the new book
@@ -757,16 +762,16 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO library_books (title, author, description, buy_url)
-            VALUES (?, ?, ?, ?)
-        ''', (title, author, description, buy_url))
+            INSERT INTO library_books (title, author, description, buy_url, category)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (title, author, description, buy_url, category))
         book_id = cursor.lastrowid
         conn.commit()
         conn.close()
         return book_id
 
     def update_library_book(self, book_id: int, title: str = None, author: str = None,
-                            description: str = None, buy_url: str = None) -> bool:
+                            description: str = None, buy_url: str = None, category: str = None) -> bool:
         """Update library book info"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -786,6 +791,9 @@ class Database:
         if buy_url is not None:
             updates.append('buy_url = ?')
             params.append(buy_url)
+        if category is not None:
+            updates.append('category = ?')
+            params.append(category if category else None)
 
         if not updates:
             conn.close()
@@ -837,7 +845,7 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, title, author, description, buy_url, display_order, created_at
+            SELECT id, title, author, description, buy_url, display_order, created_at, category
             FROM library_books
             WHERE id = ?
         ''', (book_id,))
@@ -845,34 +853,45 @@ class Database:
         conn.close()
         return book
 
-    def get_all_library_books(self, limit: int = None, offset: int = 0) -> List[Tuple]:
+    def get_all_library_books(self, limit: int = None, offset: int = 0, category: str = None) -> List[Tuple]:
         """Get all library books with pagination, sorted by display_order then author"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
+        where_clause = ""
+        params = []
+        if category:
+            where_clause = "WHERE category = ?"
+            params.append(category)
+
         if limit:
-            cursor.execute('''
-                SELECT id, title, author, description, buy_url, display_order, created_at
+            cursor.execute(f'''
+                SELECT id, title, author, description, buy_url, display_order, created_at, category
                 FROM library_books
+                {where_clause}
                 ORDER BY display_order ASC, author ASC, title ASC
                 LIMIT ? OFFSET ?
-            ''', (limit, offset))
+            ''', params + [limit, offset])
         else:
-            cursor.execute('''
-                SELECT id, title, author, description, buy_url, display_order, created_at
+            cursor.execute(f'''
+                SELECT id, title, author, description, buy_url, display_order, created_at, category
                 FROM library_books
+                {where_clause}
                 ORDER BY display_order ASC, author ASC, title ASC
-            ''')
+            ''', params)
 
         books = cursor.fetchall()
         conn.close()
         return books
 
-    def count_library_books(self) -> int:
+    def count_library_books(self, category: str = None) -> int:
         """Count total library books"""
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM library_books')
+        if category:
+            cursor.execute('SELECT COUNT(*) FROM library_books WHERE category = ?', (category,))
+        else:
+            cursor.execute('SELECT COUNT(*) FROM library_books')
         count = cursor.fetchone()[0]
         conn.close()
         return count
@@ -895,7 +914,7 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, title, author, description, buy_url, created_at
+            SELECT id, title, author, description, buy_url, created_at, category
             FROM library_books
             WHERE author = ?
             ORDER BY title
@@ -903,6 +922,20 @@ class Database:
         books = cursor.fetchall()
         conn.close()
         return books
+
+    def get_library_categories_with_counts(self) -> dict:
+        """Get count of books in each category"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT category, COUNT(*) as count
+            FROM library_books
+            WHERE category IS NOT NULL
+            GROUP BY category
+        ''')
+        result = {row['category']: row['count'] for row in cursor.fetchall()}
+        conn.close()
+        return result
 
     # Book files operations
     def add_book_file(self, library_book_id: int, format: str,
@@ -1001,12 +1034,10 @@ class Database:
                 u.first_name,
                 u.is_active,
                 u.registered_at,
-                GROUP_CONCAT(s.category || ':' || s.time_slot, ', ') as subscriptions,
-                COUNT(DISTINCT f.id) as favorites_count
+                (SELECT GROUP_CONCAT(category || ':' || time_slot, ', ')
+                 FROM user_subscriptions WHERE user_id = u.user_id) as subscriptions,
+                (SELECT COUNT(*) FROM favorites WHERE user_id = u.user_id) as favorites_count
             FROM users u
-            LEFT JOIN user_subscriptions s ON u.user_id = s.user_id
-            LEFT JOIN favorites f ON u.user_id = f.user_id
-            GROUP BY u.user_id
             ORDER BY u.registered_at DESC
         ''')
         users = cursor.fetchall()

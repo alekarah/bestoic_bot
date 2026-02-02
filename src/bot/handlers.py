@@ -16,16 +16,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.add_user(user.id, user.username, user.first_name)
 
     welcome_text = f"""
-Привет, {user.first_name}! 👋
+Привет, {user.first_name}! 🤝
 
-Я Bestoic Bot - твой проводник в мир стоической философии.
+Я твой проводник в мир стоицизма. Что я могу тебе предложить?
 
-Каждый день я буду присылать тебе мудрые цитаты из классических трудов стоиков.
+📅 Стоицизм на каждый день
+366 уроков от Райана Холидея. Практикуй уже сегодня.
 
-Используй команды:
-/settings - настроить категорию и время получения цитат
-/quote - получить случайную цитату сейчас
-/help - помощь
+📚 Библиотека лучших книг по стоицизму
+Углубленное изучение темы. Скачивай бесплатно и читай в любое удобное время.
+
+💭 Цитаты великих стоиков
+Читай, вдохновляйся, действуй.
+
+Желаем тебе удачи и добро пожаловать. Это трудный, но достойный путь.
 """
 
     await update.message.reply_text(welcome_text)
@@ -34,18 +38,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command"""
     help_text = """
-📚 Доступные команды:
+Доступные команды:
 
-/start - начать работу с ботом
+/start - начать свой путь
+/settings - управляй своими подписками
+/favorites - твои избранные цитаты
+/books - библиотека книг
 /quote - получить случайную цитату
-/books - библиотека книг для скачивания
-/favorites - мои избранные цитаты ❤️
-/settings - управление подписками
 /help - это сообщение
 
-🎯 Категории цитат:
-• 💭 Цитаты - мысли Сенеки, Марка Аврелия, Эпиктета
-• 📅 Стоицизм на каждый день - 366 размышлений по книге Райана Холидея
+✍️ Подписки:
+• Цитаты великих стоиков - Сенеки, Марка Аврелия, Эпиктета и других.
+• Стоицизм на каждый день - 366 уроков мудрости по книге Райана Холидея.
 
 ⏰ Время отправки:
 • Утро - 8:00
@@ -53,13 +57,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Вечер - 20:00
 
 📬 Система подписок:
-Вы можете подписаться на обе категории и выбрать своё время для каждой!
+Вы можете подписаться на обе категории и выбрать своё время для каждой.
 
 ❤️ Избранное:
-Нажимайте ❤️ под цитатами, чтобы сохранять понравившиеся!
+Нажимайте лайк под цитатами, чтобы сохранять понравившиеся.
 
-📖 Библиотека:
-Скачивайте книги по стоицизму в разных форматах (fb2, epub, pdf)
+📚 Библиотека:
+Скачивайте книги по стоицизму в разных форматах (fb2, epub, pdf).
+
+📨 Поделиться ботом: t.me/bestoic_bot
 """
 
     await update.message.reply_text(help_text)
@@ -192,9 +198,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             time_desc_text = f"⏰ Изменить время: {category_name}\n\n⏰ Выберите новое время:\n\n"
 
-        time_desc_text += f"🌅 Утро: {config.TIME_SLOT_DESCRIPTIONS['morning']}\n\n"
-        time_desc_text += f"☀️ День: {config.TIME_SLOT_DESCRIPTIONS['day']}\n\n"
-        time_desc_text += f"🌙 Вечер: {config.TIME_SLOT_DESCRIPTIONS['evening']}"
+        # Get descriptions for this category
+        cat_descriptions = config.TIME_SLOT_DESCRIPTIONS.get(category, config.TIME_SLOT_DESCRIPTIONS['quotes'])
+        time_desc_text += f"{cat_descriptions['morning']}\n\n"
+        time_desc_text += f"{cat_descriptions['day']}\n\n"
+        time_desc_text += f"{cat_descriptions['evening']}"
 
         await query.edit_message_text(time_desc_text, reply_markup=reply_markup)
 

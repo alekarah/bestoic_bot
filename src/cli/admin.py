@@ -22,6 +22,35 @@ CATEGORY_DISPLAY = {
     'daily': 'Стоицизм на каждый день'
 }
 
+# Library book categories
+LIBRARY_CATEGORY_MAP = {
+    'classic': 'classic',
+    'c': 'classic',
+    'классика': 'classic',
+    'modern': 'modern',
+    'm': 'modern',
+    'современные': 'modern',
+    '': None,
+    '-': None
+}
+
+LIBRARY_CATEGORY_DISPLAY = {
+    'classic': 'Классические труды',
+    'modern': 'Современные авторы'
+}
+
+
+def normalize_library_category(value):
+    """Convert user input to internal library category name"""
+    if not value or value == '-':
+        return None
+    normalized = LIBRARY_CATEGORY_MAP.get(value.lower())
+    if normalized is None and value.lower() not in LIBRARY_CATEGORY_MAP:
+        raise click.BadParameter(
+            'Категория: Классика (c) или Современные (m), или пустое для без категории'
+        )
+    return normalized
+
 
 def normalize_category(value):
     """Convert user input to internal category name"""
@@ -568,39 +597,47 @@ def library():
 @click.option('--title', prompt='Название книги', help='Название книги')
 @click.option('--description', prompt='Описание (можно пустое)', default='', help='Описание книги')
 @click.option('--buy-url', prompt='Ссылка на покупку (можно пустое)', default='', help='Ссылка на покупку бумажной версии')
-def library_add(author, title, description, buy_url):
+@click.option('--category', prompt='Категория [Классика (c) / Современные (m) / - без категории]', default='-', help='Категория книги')
+def library_add(author, title, description, buy_url, category):
     """Добавить книгу в библиотеку"""
+    cat = normalize_library_category(category)
     book_id = db.add_library_book(
         title=title.strip(),
         author=author.strip(),
         description=description.strip() if description else None,
-        buy_url=buy_url.strip() if buy_url else None
+        buy_url=buy_url.strip() if buy_url else None,
+        category=cat
     )
+    cat_display = LIBRARY_CATEGORY_DISPLAY.get(cat, 'без категории') if cat else 'без категории'
     click.echo(f'✓ Книга "{author} — {title}" добавлена в библиотеку (ID: {book_id})')
+    click.echo(f'  Категория: {cat_display}')
     click.echo(f'  Теперь добавьте файлы: python admin.py library add-file {book_id} <путь_к_файлу>')
 
 
 @library.command('list')
-def library_list():
+@click.option('--category', '-c', default=None, help='Фильтр по категории (classic/modern)')
+def library_list(category):
     """Показать все книги в библиотеке"""
-    books = db.get_all_library_books()
+    cat = normalize_library_category(category) if category else None
+    books = db.get_all_library_books(category=cat)
 
     if not books:
         click.echo('Библиотека пуста')
         return
 
-    click.echo('\n' + '='*100)
-    click.echo(f'{"ID":<5} {"Порядок":<8} {"Автор":<25} {"Название":<35} {"Форматы"}')
-    click.echo('='*100)
+    click.echo('\n' + '='*115)
+    click.echo(f'{"ID":<5} {"Порядок":<8} {"Категория":<12} {"Автор":<22} {"Название":<35} {"Форматы"}')
+    click.echo('='*115)
 
     for book in books:
         # Get file formats for this book
         files = db.get_book_files(book['id'])
         formats = ', '.join([f['format'] for f in files]) if files else '—'
         order_str = f'[{book["display_order"]}]' if book["display_order"] < 999 else '—'
-        click.echo(f'{book["id"]:<5} {order_str:<8} {book["author"][:24]:<25} {book["title"][:34]:<35} {formats}')
+        cat_short = {'classic': 'Классика', 'modern': 'Совр.'}.get(book['category'], '—')
+        click.echo(f'{book["id"]:<5} {order_str:<8} {cat_short:<12} {book["author"][:21]:<22} {book["title"][:34]:<35} {formats}')
 
-    click.echo('='*100)
+    click.echo('='*115)
     click.echo(f'Всего книг: {len(books)}\n')
 
 
@@ -614,10 +651,13 @@ def library_view(book_id):
         click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
         return
 
+    cat_display = LIBRARY_CATEGORY_DISPLAY.get(book['category'], 'без категории')
+
     click.echo('\n' + '='*60)
     click.echo(f'ID: {book["id"]}')
     click.echo(f'Автор: {book["author"]}')
     click.echo(f'Название: {book["title"]}')
+    click.echo(f'Категория: {cat_display}')
 
     if book['description']:
         click.echo('-'*60)
@@ -634,8 +674,8 @@ def library_view(book_id):
     if files:
         for f in files:
             size = f'({f["file_size"] // 1024} KB)' if f['file_size'] else ''
-            cached = '✓ кэш' if f['file_id'] else ''
-            click.echo(f'  • {f["format"].upper()}: {f["file_path"]} {size} {cached}')
+            cached = '+ cache' if f['file_id'] else ''
+            click.echo(f'  - {f["format"].upper()}: {f["file_path"]} {size} {cached}')
     else:
         click.echo('  Нет загруженных файлов')
 
@@ -648,7 +688,8 @@ def library_view(book_id):
 @click.option('--author', default=None, help='Новый автор')
 @click.option('--description', default=None, help='Новое описание')
 @click.option('--buy-url', default=None, help='Новая ссылка на покупку')
-def library_edit(book_id, title, author, description, buy_url):
+@click.option('--category', default=None, help='Новая категория (classic/modern/-)')
+def library_edit(book_id, title, author, description, buy_url, category):
     """Редактировать книгу в библиотеке"""
     book = db.get_library_book(book_id)
     if not book:
@@ -656,7 +697,7 @@ def library_edit(book_id, title, author, description, buy_url):
         return
 
     # If no options provided, prompt for each
-    if not any([title, author, description, buy_url]):
+    if not any([title, author, description, buy_url, category]):
         click.echo(f'Текущее название: {book["title"]}')
         title = click.prompt('Новое название', default=book['title'])
 
@@ -669,7 +710,13 @@ def library_edit(book_id, title, author, description, buy_url):
         click.echo(f'Текущая ссылка: {book["buy_url"] or "(пусто)"}')
         buy_url = click.prompt('Новая ссылка на покупку', default=book['buy_url'] or '')
 
-    if db.update_library_book(book_id, title, author, description, buy_url):
+        current_cat = LIBRARY_CATEGORY_DISPLAY.get(book['category'], 'без категории')
+        click.echo(f'Текущая категория: {current_cat}')
+        category = click.prompt('Новая категория [Классика (c) / Современные (m) / - без]', default=book['category'] or '-')
+
+    cat = normalize_library_category(category) if category else None
+
+    if db.update_library_book(book_id, title, author, description, buy_url, cat):
         click.echo(f'✓ Книга ID:{book_id} обновлена')
     else:
         click.echo(f'✗ Ошибка при обновлении', err=True)

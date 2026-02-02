@@ -20,20 +20,20 @@ async def post_init(application: Application):
     """Set up bot menu commands after initialization"""
     bot_commands = [
         BotCommand("start", "Начать работу с ботом"),
-        BotCommand("quote", "Получить случайную цитату"),
-        BotCommand("books", "Библиотека книг"),
-        BotCommand("favorites", "Мои избранные цитаты"),
         BotCommand("settings", "Настроить категорию и время"),
+        BotCommand("favorites", "Мои избранные цитаты"),
+        BotCommand("books", "Библиотека книг"),
+        BotCommand("quote", "Получить случайную цитату"),
         BotCommand("help", "Помощь и информация"),
     ]
 
     # Admin commands (shown only to admin)
     admin_commands = [
         BotCommand("start", "Начать работу с ботом"),
-        BotCommand("quote", "Получить случайную цитату"),
-        BotCommand("books", "Библиотека книг"),
-        BotCommand("favorites", "Мои избранные цитаты"),
         BotCommand("settings", "Настроить категорию и время"),
+        BotCommand("favorites", "Мои избранные цитаты"),
+        BotCommand("books", "Библиотека книг"),
+        BotCommand("quote", "Получить случайную цитату"),
         BotCommand("help", "Помощь и информация"),
         BotCommand("admin_add", "➕ Добавить цитату"),
         BotCommand("admin_edit", "✏️ Редактировать цитату"),
