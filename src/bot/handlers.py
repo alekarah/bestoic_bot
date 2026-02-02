@@ -220,7 +220,7 @@ async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, us
 
         keyboard = [
             [InlineKeyboardButton(fav_button_text, callback_data=fav_callback_data)],
-            [InlineKeyboardButton("📤 Поделиться", url=share_url)]
+            # [InlineKeyboardButton("📤 Поделиться", url=share_url)]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -340,8 +340,8 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Update button to "remove", keep share button
         share_url = _get_share_url_from_message(query.message.text, quote_id=quote_id)
         keyboard = [[InlineKeyboardButton("💔 Убрать из избранного", callback_data=f"unfav_{quote_id}")]]
-        if share_url:
-            keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
+        # if share_url:
+        #     keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_reply_markup(reply_markup=reply_markup)
 
@@ -354,8 +354,8 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Update button to "add", keep share button
         share_url = _get_share_url_from_message(query.message.text, quote_id=quote_id)
         keyboard = [[InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")]]
-        if share_url:
-            keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
+        # if share_url:
+        #     keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_reply_markup(reply_markup=reply_markup)
 
@@ -484,8 +484,8 @@ def build_favorites_keyboard(quote_id: int, page: int, total: int, share_text: s
     keyboard.append([InlineKeyboardButton("🗑 Удалить из избранного", callback_data=f"favdel_{quote_id}")])
 
     # Share button
-    if share_text:
-        share_url = build_share_url(share_text, quote_id=quote_id)
-        keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
+    # if share_text:
+    #     share_url = build_share_url(share_text, quote_id=quote_id)
+    #     keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
 
     return keyboard
