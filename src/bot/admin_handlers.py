@@ -737,7 +737,12 @@ async def admin_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     if users_data:
         message += "\n👤 *Последние пользователи:*\n"
         for i, user in enumerate(users_data[:10], 1):
-            username = f"@{user['username']}" if user['username'] else user['first_name'] or f"ID:{user['user_id']}"
+            if user['username']:
+                # Escape underscores for Markdown
+                escaped_username = user['username'].replace('_', '\\_')
+                username = f"@{escaped_username}"
+            else:
+                username = user['first_name'] or f"ID:{user['user_id']}"
 
             # Parse subscriptions
             subs = user['subscriptions'] or '—'

@@ -1,9 +1,12 @@
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from src.database.models import Database
 from src.utils.quote_parser import format_quote_for_telegram
 from urllib.parse import quote as url_quote
 import config
+
+logger = logging.getLogger(__name__)
 
 
 db = Database()
@@ -32,7 +35,8 @@ def build_share_url(text: str, quote_id: int = None, max_length: int = 300) -> s
     share_text = f"{text}\n\n🔗 {bot_link}"
     # URL encode with safe='' to encode all special characters
     encoded_text = url_quote(share_text, safe='')
-    return f"https://t.me/share/url?text={encoded_text}"
+    # Use url parameter (even if empty) for better compatibility
+    return f"https://t.me/share/url?url=&text={encoded_text}"
 
 
 def _get_share_url_from_message(text: str, quote_id: int = None) -> str:
@@ -212,6 +216,7 @@ async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, us
 
         # Build share URL (bot link is added inside build_share_url)
         share_url = build_share_url(message, quote_id=quote['id'])
+        logger.info(f"Share URL length: {len(share_url)}, URL: {share_url[:100]}...")
 
         keyboard = [
             [InlineKeyboardButton(fav_button_text, callback_data=fav_callback_data)],
