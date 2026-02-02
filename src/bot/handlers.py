@@ -13,7 +13,16 @@ def build_share_url(text: str) -> str:
     """Build t.me/share URL for sharing quote"""
     # Add bot link to the text
     share_text = f"{text}\n\n🔗 t.me/{config.BOT_USERNAME}"
-    return f"https://t.me/share/url?url=&text={url_quote(share_text)}"
+    # URL encode with safe='' to encode all special characters
+    encoded_text = url_quote(share_text, safe='')
+    return f"https://t.me/share/url?text={encoded_text}"
+
+
+def _get_share_url_from_message(text: str) -> str:
+    """Build share URL from current message text"""
+    if not text:
+        return None
+    return build_share_url(text)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,7 +85,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📚 Библиотека:
 Скачивайте книги по стоицизму в разных форматах (fb2, epub, pdf).
 
-📨 Поделиться ботом: t.me/bestoic_bot
+🔗 Поделиться:
+Делитесь с друзьями — кнопка под каждой цитатой.
 """
 
     await update.message.reply_text(help_text)
@@ -289,8 +299,11 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         db.add_to_favorites(user_id, quote_id)
         await query.answer("❤️ Добавлено в избранное!")
 
-        # Update button to "remove"
+        # Update button to "remove", keep share button
+        share_url = _get_share_url_from_message(query.message.text)
         keyboard = [[InlineKeyboardButton("💔 Убрать из избранного", callback_data=f"unfav_{quote_id}")]]
+        if share_url:
+            keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_reply_markup(reply_markup=reply_markup)
 
@@ -299,6 +312,14 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         quote_id = int(data.replace('unfav_', ''))
         db.remove_from_favorites(user_id, quote_id)
         await query.answer("💔 Удалено из избранного")
+
+        # Update button to "add", keep share button
+        share_url = _get_share_url_from_message(query.message.text)
+        keyboard = [[InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")]]
+        if share_url:
+            keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_reply_markup(reply_markup=reply_markup)
 
         # Update button to "add"
         keyboard = [[InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")]]
