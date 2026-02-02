@@ -409,6 +409,20 @@ class Database:
         conn.close()
         return quote
 
+    def get_quote_by_id(self, quote_id: int) -> Optional[Tuple]:
+        """Get a specific quote by ID"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year
+            FROM quotes q
+            LEFT JOIN books b ON q.book_id = b.id
+            WHERE q.id = ?
+        ''', (quote_id,))
+        quote = cursor.fetchone()
+        conn.close()
+        return quote
+
     def mark_quote_as_sent(self, user_id: int, quote_id: int):
         """Mark a quote as sent to a user"""
         conn = self.get_connection()

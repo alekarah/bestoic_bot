@@ -9,54 +9,79 @@ import config
 db = Database()
 
 
-def build_share_url(text: str, max_length: int = 500) -> str:
+def build_share_url(text: str, quote_id: int = None, max_length: int = 300) -> str:
     """Build t.me/share URL for sharing quote.
 
     Telegram has URL length limits for inline buttons (~2048 chars).
     We limit text to max_length chars to keep URL reasonable.
+    If quote_id is provided AND text is truncated, adds a deep link to view full quote.
     """
+    # Check if truncation is needed
+    is_truncated = len(text) > max_length
+
     # Truncate text if too long (URL-encoded text can be 3-6x longer)
-    if len(text) > max_length:
+    if is_truncated:
         text = text[:max_length].rsplit(' ', 1)[0] + '...'
 
-    # Add bot link to the text
-    share_text = f"{text}\n\n🔗 t.me/{config.BOT_USERNAME}"
+    # Add bot link - with deep link only if text was truncated and quote_id provided
+    if is_truncated and quote_id:
+        bot_link = f"t.me/{config.BOT_USERNAME}?start=quote_{quote_id}"
+    else:
+        bot_link = f"t.me/{config.BOT_USERNAME}"
+
+    share_text = f"{text}\n\n🔗 {bot_link}"
     # URL encode with safe='' to encode all special characters
     encoded_text = url_quote(share_text, safe='')
     return f"https://t.me/share/url?text={encoded_text}"
 
 
-def _get_share_url_from_message(text: str) -> str:
+def _get_share_url_from_message(text: str, quote_id: int = None) -> str:
     """Build share URL from current message text"""
     if not text:
         return None
-    return build_share_url(text)
+    return build_share_url(text, quote_id=quote_id)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command"""
+    """Handle /start command, including deep links like /start quote_123"""
     user = update.effective_user
 
     # Add user to database
     db.add_user(user.id, user.username, user.first_name)
 
+    # Check for deep link parameter (e.g., /start quote_123)
+    if context.args and len(context.args) > 0:
+        param = context.args[0]
+        if param.startswith('quote_'):
+            try:
+                quote_id = int(param.replace('quote_', ''))
+                quote = db.get_quote_by_id(quote_id)
+                if quote:
+                    # Send intro message for shared quote
+                    await update.message.reply_text("👋 Привет! Вот цитата, которой с тобой поделились:")
+                    await send_quote(update.effective_chat.id, quote, context, user_id=user.id)
+                    await update.message.reply_text("👉 Нажми /start чтобы узнать больше о боте")
+                    return
+            except (ValueError, Exception):
+                pass  # Invalid quote_id, show normal welcome
+
     welcome_text = f"""
 Привет, {user.first_name}! 🤝
 
-Я - твой проводник в мир стоицизма. 
+Я - твой проводник в мир стоицизма.
 Что я могу тебе предложить?
 
 📅 Стоицизм на каждый день
 366 уроков от Райана Холидея. Практикуй уже сегодня.
 
 📚 Библиотека лучших книг по стоицизму
-Углубленное изучение темы. 
+Углубленное изучение темы.
 Скачивай бесплатно и читай в любое удобное время.
 
 💭 Цитаты великих стоиков
 Читай, вдохновляйся, действуй.
 
-Желаем тебе удачи и добро пожаловать. 
+Желаем тебе удачи и добро пожаловать.
 Это трудный, но достойный путь.
 """
 
@@ -186,7 +211,7 @@ async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, us
             fav_callback_data = f"fav_{quote['id']}"
 
         # Build share URL (bot link is added inside build_share_url)
-        share_url = build_share_url(message)
+        share_url = build_share_url(message, quote_id=quote['id'])
 
         keyboard = [
             [InlineKeyboardButton(fav_button_text, callback_data=fav_callback_data)],
@@ -308,7 +333,7 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer("❤️ Добавлено в избранное!")
 
         # Update button to "remove", keep share button
-        share_url = _get_share_url_from_message(query.message.text)
+        share_url = _get_share_url_from_message(query.message.text, quote_id=quote_id)
         keyboard = [[InlineKeyboardButton("💔 Убрать из избранного", callback_data=f"unfav_{quote_id}")]]
         if share_url:
             keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
@@ -322,7 +347,7 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer("💔 Удалено из избранного")
 
         # Update button to "add", keep share button
-        share_url = _get_share_url_from_message(query.message.text)
+        share_url = _get_share_url_from_message(query.message.text, quote_id=quote_id)
         keyboard = [[InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")]]
         if share_url:
             keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
@@ -455,7 +480,7 @@ def build_favorites_keyboard(quote_id: int, page: int, total: int, share_text: s
 
     # Share button
     if share_text:
-        share_url = build_share_url(share_text)
+        share_url = build_share_url(share_text, quote_id=quote_id)
         keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
 
     return keyboard
