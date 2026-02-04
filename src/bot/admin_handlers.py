@@ -817,3 +817,99 @@ async def admin_quote_stats_command(update: Update, context: ContextTypes.DEFAUL
 def get_admin_quote_stats_handler():
     """Get handler for /admin_quote_stats command"""
     return CommandHandler('admin_quote_stats', admin_quote_stats_command)
+
+
+# Broadcast states
+BROADCAST_CONFIRM = 20
+
+
+@admin_required
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start broadcast - send message to all users. Usage: /broadcast <message>"""
+    if not context.args:
+        await update.message.reply_text(
+            "📢 *Рассылка сообщений*\n\n"
+            "Использование: `/broadcast <текст сообщения>`\n\n"
+            "Пример:\n"
+            "`/broadcast Привет! Напоминаю, что вы можете настроить подписки в /settings`",
+            parse_mode='Markdown'
+        )
+        return ConversationHandler.END
+
+    message_text = ' '.join(context.args)
+    context.user_data['broadcast_message'] = message_text
+
+    # Get all users count
+    all_users = db.get_all_users()
+    user_count = len(all_users)
+
+    keyboard = [
+        [InlineKeyboardButton("✅ Да, отправить", callback_data='broadcast_confirm')],
+        [InlineKeyboardButton("❌ Отмена", callback_data='broadcast_cancel')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        f"📢 *Подтверждение рассылки*\n\n"
+        f"Сообщение:\n{message_text}\n\n"
+        f"Будет отправлено: *{user_count}* пользователям\n\n"
+        f"Отправить?",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+    return BROADCAST_CONFIRM
+
+
+async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle broadcast confirmation"""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'broadcast_cancel':
+        await query.edit_message_text("❌ Рассылка отменена")
+        return ConversationHandler.END
+
+    if query.data == 'broadcast_confirm':
+        message_text = context.user_data.get('broadcast_message')
+        if not message_text:
+            await query.edit_message_text("❌ Ошибка: сообщение не найдено")
+            return ConversationHandler.END
+
+        await query.edit_message_text("📤 Отправка сообщений...")
+
+        # Get all users and send
+        all_users = db.get_all_users()
+        sent = 0
+        failed = 0
+
+        for user in all_users:
+            try:
+                await context.bot.send_message(
+                    chat_id=user['user_id'],
+                    text=message_text
+                )
+                sent += 1
+            except Exception:
+                failed += 1
+
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"✅ *Рассылка завершена*\n\n"
+                 f"Отправлено: {sent}\n"
+                 f"Ошибок: {failed}",
+            parse_mode='Markdown'
+        )
+        return ConversationHandler.END
+
+    return BROADCAST_CONFIRM
+
+
+def get_broadcast_handler():
+    """Get handler for /broadcast command"""
+    return ConversationHandler(
+        entry_points=[CommandHandler('broadcast', broadcast_command)],
+        states={
+            BROADCAST_CONFIRM: [CallbackQueryHandler(broadcast_callback, pattern='^broadcast_')],
+        },
+        fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)],
+    )

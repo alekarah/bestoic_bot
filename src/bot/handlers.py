@@ -89,7 +89,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Это трудный, но достойный путь.
 """
 
-    await update.message.reply_text(welcome_text)
+    # Add subscribe button
+    keyboard = [[InlineKeyboardButton("📬 Подписаться на цитаты", callback_data="open_settings")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(welcome_text, reply_markup=reply_markup)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -129,11 +133,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(help_text)
 
 
-async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /settings command - show subscription management menu"""
-    user_id = update.effective_user.id
-
-    # Get user's current subscriptions
+def _build_settings_content(user_id: int):
+    """Build settings menu text and keyboard"""
     subscriptions = db.get_user_subscriptions(user_id)
 
     # Build settings message
@@ -151,7 +152,6 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Build keyboard
     keyboard = []
 
-    # Add subscription buttons
     if not db.has_subscription(user_id, 'quotes'):
         keyboard.append([InlineKeyboardButton("➕ Добавить: Цитаты", callback_data='add_sub_quotes')])
     else:
@@ -165,6 +165,19 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard.append([InlineKeyboardButton("🗑 Удалить: Стоицизм на каждый день", callback_data='remove_sub_daily')])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
+    return settings_text, reply_markup
+
+
+async def show_settings_menu(query, user_id: int):
+    """Show settings menu by editing message (for callback buttons)"""
+    settings_text, reply_markup = _build_settings_content(user_id)
+    await query.edit_message_text(settings_text, reply_markup=reply_markup)
+
+
+async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /settings command - show subscription management menu"""
+    user_id = update.effective_user.id
+    settings_text, reply_markup = _build_settings_content(user_id)
     await update.message.reply_text(settings_text, reply_markup=reply_markup)
 
 
@@ -234,6 +247,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     data = query.data
+
+    # Open settings from welcome message button
+    if data == 'open_settings':
+        await show_settings_menu(query, user_id)
+        return
 
     # Add subscription OR change time - show time selection
     if data.startswith('add_sub_') or data.startswith('change_time_'):

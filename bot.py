@@ -2,7 +2,7 @@ import logging
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from src.bot.handlers import start_command, help_command, settings_command, quote_command, button_callback, favorites_command, favorites_callback
-from src.bot.admin_handlers import get_add_quote_handler, get_delete_quote_handler, get_edit_quote_handler, get_admin_users_handler, get_admin_quote_stats_handler
+from src.bot.admin_handlers import get_add_quote_handler, get_delete_quote_handler, get_edit_quote_handler, get_admin_users_handler, get_admin_quote_stats_handler, get_broadcast_handler
 from src.bot.library_handlers import books_command, library_callback
 from src.bot.scheduler import setup_scheduler
 import config
@@ -20,7 +20,7 @@ async def post_init(application: Application):
     """Set up bot menu commands after initialization"""
     bot_commands = [
         BotCommand("start", "Начать работу с ботом"),
-        BotCommand("settings", "Настроить категорию и время"),
+        BotCommand("settings", "Настроить подписки"),
         BotCommand("favorites", "Мои избранные цитаты"),
         BotCommand("books", "Библиотека книг"),
         BotCommand("quote", "Получить случайную цитату"),
@@ -30,7 +30,7 @@ async def post_init(application: Application):
     # Admin commands (shown only to admin)
     admin_commands = [
         BotCommand("start", "Начать работу с ботом"),
-        BotCommand("settings", "Настроить категорию и время"),
+        BotCommand("settings", "Настроить подписки"),
         BotCommand("favorites", "Мои избранные цитаты"),
         BotCommand("books", "Библиотека книг"),
         BotCommand("quote", "Получить случайную цитату"),
@@ -80,9 +80,10 @@ def main():
     application.add_handler(get_edit_quote_handler())
     application.add_handler(get_admin_users_handler())
     application.add_handler(get_admin_quote_stats_handler())
+    application.add_handler(get_broadcast_handler())
 
     # Register callback handler for settings and subscriptions (with pattern to avoid catching admin callbacks)
-    application.add_handler(CallbackQueryHandler(button_callback, pattern='^(add_sub_|remove_sub_|change_time_|select_time_|cancel_subscription)'))
+    application.add_handler(CallbackQueryHandler(button_callback, pattern='^(open_settings|add_sub_|remove_sub_|change_time_|select_time_|cancel_subscription)'))
 
     # Register callback handler for favorites
     application.add_handler(CallbackQueryHandler(favorites_callback, pattern='^(fav_|unfav_|favpage_|favdel_)'))
