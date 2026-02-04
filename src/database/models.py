@@ -476,6 +476,15 @@ class Database:
         conn.close()
         return user
 
+    def get_all_users(self) -> List[dict]:
+        """Get all users"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT user_id, username, first_name, is_active FROM users')
+        users = cursor.fetchall()
+        conn.close()
+        return [{'user_id': u[0], 'username': u[1], 'first_name': u[2], 'is_active': u[3]} for u in users]
+
     def get_users_by_time_slot(self, time_slot: str) -> List[Tuple]:
         """Get all active users for a specific time slot"""
         conn = self.get_connection()
