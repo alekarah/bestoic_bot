@@ -826,17 +826,27 @@ BROADCAST_SELECT_AUDIENCE, BROADCAST_CONFIRM = 20, 21
 @admin_required
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start broadcast - send message to all users. Usage: /broadcast <message>"""
-    if not context.args:
+    # Get text after /broadcast command (supports multiline)
+    full_text = update.message.text
+    # Remove "/broadcast" or "/broadcast " prefix
+    if full_text.startswith('/broadcast '):
+        message_text = full_text[11:]  # len('/broadcast ') = 11
+    elif full_text.startswith('/broadcast\n'):
+        message_text = full_text[11:]  # len('/broadcast\n') = 11
+    else:
+        message_text = None
+
+    if not message_text or not message_text.strip():
         await update.message.reply_text(
             "📢 *Рассылка сообщений*\n\n"
             "Использование: `/broadcast <текст сообщения>`\n\n"
+            "Поддерживается многострочный текст.\n\n"
             "Пример:\n"
             "`/broadcast Привет! Напоминаю, что вы можете настроить подписки в /settings`",
             parse_mode='Markdown'
         )
         return ConversationHandler.END
 
-    message_text = ' '.join(context.args)
     context.user_data['broadcast_message'] = message_text
 
     # Get counts

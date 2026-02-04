@@ -235,7 +235,7 @@ async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, us
 
         keyboard = [
             [InlineKeyboardButton(fav_button_text, callback_data=fav_callback_data)],
-            # [InlineKeyboardButton("📤 Поделиться", url=share_url)]
+            # [InlineKeyboardButton("📤 Поделиться", url=share_url)]  # TODO: fix share button
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
