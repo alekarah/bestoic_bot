@@ -40,6 +40,7 @@ async def post_init(application: Application):
         BotCommand("admin_delete", "🗑 Удалить цитату"),
         BotCommand("admin_users", "👥 Статистика пользователей"),
         BotCommand("admin_quote_stats", "📊 Статистика по избранному"),
+        BotCommand("broadcast", "📢 Рассылка сообщений"),
     ]
 
     # Set commands for all users

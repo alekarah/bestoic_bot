@@ -820,7 +820,7 @@ def get_admin_quote_stats_handler():
 
 
 # Broadcast states
-BROADCAST_CONFIRM = 20
+BROADCAST_SELECT_AUDIENCE, BROADCAST_CONFIRM = 20, 21
 
 
 @admin_required
@@ -839,29 +839,29 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message_text = ' '.join(context.args)
     context.user_data['broadcast_message'] = message_text
 
-    # Get all users count
+    # Get counts
     all_users = db.get_all_users()
-    user_count = len(all_users)
+    users_without_subs = [u for u in all_users if not db.get_user_subscriptions(u['user_id'])]
 
     keyboard = [
-        [InlineKeyboardButton("✅ Да, отправить", callback_data='broadcast_confirm')],
+        [InlineKeyboardButton(f"👥 Всем ({len(all_users)})", callback_data='broadcast_audience_all')],
+        [InlineKeyboardButton(f"📭 Только без подписок ({len(users_without_subs)})", callback_data='broadcast_audience_nosubs')],
         [InlineKeyboardButton("❌ Отмена", callback_data='broadcast_cancel')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        f"📢 *Подтверждение рассылки*\n\n"
+        f"📢 *Рассылка*\n\n"
         f"Сообщение:\n{message_text}\n\n"
-        f"Будет отправлено: *{user_count}* пользователям\n\n"
-        f"Отправить?",
+        f"Кому отправить?",
         reply_markup=reply_markup,
         parse_mode='Markdown'
     )
-    return BROADCAST_CONFIRM
+    return BROADCAST_SELECT_AUDIENCE
 
 
 async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle broadcast confirmation"""
+    """Handle broadcast audience selection and confirmation"""
     query = update.callback_query
     await query.answer()
 
@@ -869,20 +869,58 @@ async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.edit_message_text("❌ Рассылка отменена")
         return ConversationHandler.END
 
+    # Audience selection
+    if query.data == 'broadcast_audience_all':
+        context.user_data['broadcast_audience'] = 'all'
+        all_users = db.get_all_users()
+        count = len(all_users)
+    elif query.data == 'broadcast_audience_nosubs':
+        context.user_data['broadcast_audience'] = 'nosubs'
+        all_users = db.get_all_users()
+        users_without_subs = [u for u in all_users if not db.get_user_subscriptions(u['user_id'])]
+        count = len(users_without_subs)
+    else:
+        count = None
+
+    if count is not None:
+        message_text = context.user_data.get('broadcast_message')
+        keyboard = [
+            [InlineKeyboardButton("✅ Да, отправить", callback_data='broadcast_confirm')],
+            [InlineKeyboardButton("❌ Отмена", callback_data='broadcast_cancel')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(
+            f"📢 *Подтверждение*\n\n"
+            f"Сообщение:\n{message_text}\n\n"
+            f"Получателей: *{count}*\n\n"
+            f"Отправить?",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        return BROADCAST_CONFIRM
+
     if query.data == 'broadcast_confirm':
         message_text = context.user_data.get('broadcast_message')
+        audience = context.user_data.get('broadcast_audience', 'all')
+
         if not message_text:
             await query.edit_message_text("❌ Ошибка: сообщение не найдено")
             return ConversationHandler.END
 
         await query.edit_message_text("📤 Отправка сообщений...")
 
-        # Get all users and send
+        # Get users based on audience
         all_users = db.get_all_users()
+        if audience == 'nosubs':
+            users_to_send = [u for u in all_users if not db.get_user_subscriptions(u['user_id'])]
+        else:
+            users_to_send = all_users
+
         sent = 0
         failed = 0
 
-        for user in all_users:
+        for user in users_to_send:
             try:
                 await context.bot.send_message(
                     chat_id=user['user_id'],
@@ -909,6 +947,7 @@ def get_broadcast_handler():
     return ConversationHandler(
         entry_points=[CommandHandler('broadcast', broadcast_command)],
         states={
+            BROADCAST_SELECT_AUDIENCE: [CallbackQueryHandler(broadcast_callback, pattern='^broadcast_')],
             BROADCAST_CONFIRM: [CallbackQueryHandler(broadcast_callback, pattern='^broadcast_')],
         },
         fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)],

@@ -87,10 +87,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Желаем тебе удачи и добро пожаловать.
 Это трудный, но достойный путь.
+
+Чтобы настроить подписки нажми на кнопку ниже. Еще функционал по кнопке Меню.
 """
 
     # Add subscribe button
-    keyboard = [[InlineKeyboardButton("📬 Подписаться на цитаты", callback_data="open_settings")]]
+    keyboard = [[InlineKeyboardButton("Подписаться", callback_data="open_settings")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(welcome_text, reply_markup=reply_markup)
