@@ -860,12 +860,12 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
+    # Show preview without Markdown to avoid parsing issues with user text
     await update.message.reply_text(
-        f"📢 *Рассылка*\n\n"
+        f"📢 Рассылка\n\n"
         f"Сообщение:\n{message_text}\n\n"
         f"Кому отправить?",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
+        reply_markup=reply_markup
     )
     return BROADCAST_SELECT_AUDIENCE
 
@@ -901,12 +901,11 @@ async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         await query.edit_message_text(
-            f"📢 *Подтверждение*\n\n"
+            f"📢 Подтверждение\n\n"
             f"Сообщение:\n{message_text}\n\n"
-            f"Получателей: *{count}*\n\n"
+            f"Получателей: {count}\n\n"
             f"Отправить?",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
+            reply_markup=reply_markup
         )
         return BROADCAST_CONFIRM
 
