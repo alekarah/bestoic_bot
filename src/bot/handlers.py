@@ -1,9 +1,8 @@
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, SwitchInlineQueryChosenChat
 from telegram.ext import ContextTypes
 from src.database.models import Database
 from src.utils.quote_parser import format_quote_for_telegram
-from urllib.parse import quote as url_quote
 import config
 
 logger = logging.getLogger(__name__)
@@ -12,38 +11,22 @@ logger = logging.getLogger(__name__)
 db = Database()
 
 
-def build_share_url(text: str, quote_id: int = None, max_length: int = 300) -> str:
-    """Build t.me/share URL for sharing quote.
-
-    Telegram has URL length limits for inline buttons (~2048 chars).
-    We limit text to max_length chars to keep URL reasonable.
-    If quote_id is provided AND text is truncated, adds a deep link to view full quote.
-    """
-    # Check if truncation is needed
-    is_truncated = len(text) > max_length
-
-    # Truncate text if too long (URL-encoded text can be 3-6x longer)
-    if is_truncated:
-        text = text[:max_length].rsplit(' ', 1)[0] + '...'
-
-    # Add bot link - with deep link only if text was truncated and quote_id provided
+def _build_share_button(text: str, quote_id: int = None) -> InlineKeyboardButton:
+    """Build share button using switch_inline_query_chosen_chat"""
+    is_truncated = len(text) > 200
+    truncated = text[:200] + '...' if is_truncated else text
+    # Use deep link for truncated quotes so recipient can read full version
     if is_truncated and quote_id:
-        bot_link = f"t.me/{config.BOT_USERNAME}?start=quote_{quote_id}"
+        bot_link = f"👉 Читать полностью: t.me/{config.BOT_USERNAME}?start=quote_{quote_id}"
     else:
         bot_link = f"t.me/{config.BOT_USERNAME}"
-
-    share_text = f"{text}\n\n🔗 {bot_link}"
-    # URL encode with safe='' to encode all special characters
-    encoded_text = url_quote(share_text, safe='')
-    # Use url parameter (even if empty) for better compatibility
-    return f"https://t.me/share/url?url=&text={encoded_text}"
-
-
-def _get_share_url_from_message(text: str, quote_id: int = None) -> str:
-    """Build share URL from current message text"""
-    if not text:
-        return None
-    return build_share_url(text, quote_id=quote_id)
+    share_text = f"\n{truncated}\n\n{bot_link}"
+    return InlineKeyboardButton("📤 Поделиться", switch_inline_query_chosen_chat=SwitchInlineQueryChosenChat(
+        query=share_text,
+        allow_user_chats=True,
+        allow_group_chats=True,
+        allow_channel_chats=True,
+    ))
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -62,7 +45,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 quote = db.get_quote_by_id(quote_id)
                 if quote:
                     # Send intro message for shared quote
-                    await update.message.reply_text("👋 Привет! Вот цитата, которой с тобой поделились:")
+                    await update.message.reply_text("Привет! Вот цитата, которой с тобой поделились:")
                     await send_quote(update.effective_chat.id, quote, context, user_id=user.id)
                     await update.message.reply_text("👉 Нажми /start чтобы узнать больше о боте")
                     return
@@ -229,13 +212,9 @@ async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, us
             fav_button_text = "❤️ В избранное"
             fav_callback_data = f"fav_{quote['id']}"
 
-        # Build share URL (bot link is added inside build_share_url)
-        share_url = build_share_url(message, quote_id=quote['id'])
-        logger.info(f"Share URL length: {len(share_url)}, URL: {share_url[:100]}...")
-
         keyboard = [
             [InlineKeyboardButton(fav_button_text, callback_data=fav_callback_data)],
-            # [InlineKeyboardButton("📤 Поделиться", url=share_url)]  # TODO: fix share button
+            [_build_share_button(message, quote_id=quote['id'])]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -358,10 +337,10 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer("❤️ Добавлено в избранное!")
 
         # Update button to "remove", keep share button
-        share_url = _get_share_url_from_message(query.message.text, quote_id=quote_id)
-        keyboard = [[InlineKeyboardButton("💔 Убрать из избранного", callback_data=f"unfav_{quote_id}")]]
-        # if share_url:
-        #     keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
+        keyboard = [
+            [InlineKeyboardButton("💔 Убрать из избранного", callback_data=f"unfav_{quote_id}")],
+            [_build_share_button(query.message.text, quote_id=quote_id)]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_reply_markup(reply_markup=reply_markup)
 
@@ -372,10 +351,10 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer("💔 Удалено из избранного")
 
         # Update button to "add", keep share button
-        share_url = _get_share_url_from_message(query.message.text, quote_id=quote_id)
-        keyboard = [[InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")]]
-        # if share_url:
-        #     keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
+        keyboard = [
+            [InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")],
+            [_build_share_button(query.message.text, quote_id=quote_id)]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_reply_markup(reply_markup=reply_markup)
 
@@ -504,8 +483,7 @@ def build_favorites_keyboard(quote_id: int, page: int, total: int, share_text: s
     keyboard.append([InlineKeyboardButton("🗑 Удалить из избранного", callback_data=f"favdel_{quote_id}")])
 
     # Share button
-    # if share_text:
-    #     share_url = build_share_url(share_text, quote_id=quote_id)
-    #     keyboard.append([InlineKeyboardButton("📤 Поделиться", url=share_url)])
+    if share_text:
+        keyboard.append([_build_share_button(share_text, quote_id=quote_id)])
 
     return keyboard

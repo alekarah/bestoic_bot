@@ -729,9 +729,11 @@ async def admin_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if stats['by_time_slot']:
         message += "\n⏰ *По времени:*\n"
-        for time, count in stats['by_time_slot'].items():
-            time_name = {'morning': 'Утро (8:00)', 'day': 'День (14:00)', 'evening': 'Вечер (20:00)'}.get(time, time)
-            message += f"   {time_name}: {count}\n"
+        time_order = ['morning', 'day', 'evening']
+        time_names = {'morning': 'Утро (8:00)', 'day': 'День (14:00)', 'evening': 'Вечер (20:00)'}
+        for time in time_order:
+            if time in stats['by_time_slot']:
+                message += f"   {time_names[time]}: {stats['by_time_slot'][time]}\n"
 
     # Show last 10 users
     if users_data:
