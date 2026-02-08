@@ -17,7 +17,7 @@ def _build_share_button(text: str, quote_id: int = None) -> InlineKeyboardButton
     truncated = text[:200] + '...' if is_truncated else text
     # Use deep link for truncated quotes so recipient can read full version
     if is_truncated and quote_id:
-        bot_link = f"👉 Читать полностью: t.me/{config.BOT_USERNAME}?start=quote_{quote_id}"
+        bot_link = f"Читать полностью 👉 t.me/{config.BOT_USERNAME}?start=quote_{quote_id}"
     else:
         bot_link = f"t.me/{config.BOT_USERNAME}"
     share_text = f"\n{truncated}\n\n{bot_link}"

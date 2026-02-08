@@ -2,7 +2,7 @@ import logging
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from src.bot.handlers import start_command, help_command, settings_command, quote_command, button_callback, favorites_command, favorites_callback
-from src.bot.admin_handlers import get_add_quote_handler, get_delete_quote_handler, get_edit_quote_handler, get_admin_users_handler, get_admin_quote_stats_handler, get_broadcast_handler
+from src.bot.admin import get_add_quote_handler, get_delete_quote_handler, get_edit_quote_handler, get_admin_users_handler, get_admin_quote_stats_handler, get_broadcast_handler
 from src.bot.library_handlers import books_command, library_callback
 from src.bot.scheduler import setup_scheduler
 import config
