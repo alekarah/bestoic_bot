@@ -5,7 +5,6 @@ Admin CLI for Bestoic Bot
 
 import click
 from src.cli.common import db
-from src.cli.books import book
 from src.cli.quotes import quote
 from src.cli.library import library
 from src.cli.users import users
@@ -18,7 +17,6 @@ def cli():
 
 
 # Регистрация групп команд
-cli.add_command(book)
 cli.add_command(quote)
 cli.add_command(library)
 cli.add_command(users)
