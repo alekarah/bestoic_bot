@@ -1,3 +1,5 @@
+"""Основные обработчики бота: команды, подписки, избранное, шаринг."""
+
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, SwitchInlineQueryChosenChat
 from telegram.ext import ContextTypes
@@ -12,10 +14,10 @@ db = Database()
 
 
 def _build_share_button(text: str, quote_id: int = None) -> InlineKeyboardButton:
-    """Build share button using switch_inline_query_chosen_chat"""
+    """Создать кнопку «Поделиться» через switch_inline_query_chosen_chat"""
     is_truncated = len(text) > 200
     truncated = text[:200] + '...' if is_truncated else text
-    # Use deep link for truncated quotes so recipient can read full version
+    # Для обрезанных цитат используем deep link, чтобы получатель мог прочитать полную версию
     if is_truncated and quote_id:
         bot_link = f"Читать полностью 👉 t.me/{config.BOT_USERNAME}?start=quote_{quote_id}"
     else:
@@ -30,13 +32,13 @@ def _build_share_button(text: str, quote_id: int = None) -> InlineKeyboardButton
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command, including deep links like /start quote_123"""
+    """Обработка команды /start, включая deep links вида /start quote_123"""
     user = update.effective_user
 
-    # Add user to database
+    # Добавить пользователя в базу данных
     db.add_user(user.id, user.username, user.first_name)
 
-    # Check for deep link parameter (e.g., /start quote_123)
+    # Проверка параметра deep link (например, /start quote_123)
     if context.args and len(context.args) > 0:
         param = context.args[0]
         if param.startswith('quote_'):
@@ -44,13 +46,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 quote_id = int(param.replace('quote_', ''))
                 quote = db.get_quote_by_id(quote_id)
                 if quote:
-                    # Send intro message for shared quote
+                    # Отправить вступительное сообщение для расшаренной цитаты
                     await update.message.reply_text("Привет! Вот цитата, которой с тобой поделились:")
                     await send_quote(update.effective_chat.id, quote, context, user_id=user.id)
                     await update.message.reply_text("👉 Нажми /start чтобы узнать больше о боте")
                     return
             except (ValueError, Exception):
-                pass  # Invalid quote_id, show normal welcome
+                pass  # Невалидный quote_id — показываем обычное приветствие
 
     welcome_text = f"""
 Привет, {user.first_name}! 🤝
@@ -74,7 +76,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 👇 Нажми «Подписаться» или открой Меню
 """
 
-    # Add subscribe button
+    # Кнопка подписки
     keyboard = [[InlineKeyboardButton("Подписаться", callback_data="open_settings")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -82,7 +84,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /help command"""
+    """Обработка команды /help"""
     help_text = """
 Доступные команды:
 
@@ -119,10 +121,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def _build_settings_content(user_id: int):
-    """Build settings menu text and keyboard"""
+    """Сформировать текст и клавиатуру меню настроек"""
     subscriptions = db.get_user_subscriptions(user_id)
 
-    # Build settings message
+    # Формируем сообщение настроек
     if subscriptions:
         settings_text = "📬 Ваши подписки:\n\n"
         for sub in subscriptions:
@@ -134,7 +136,7 @@ def _build_settings_content(user_id: int):
     else:
         settings_text = "📬 У вас пока нет активных подписок.\n\nДобавьте первую подписку!"
 
-    # Build keyboard
+    # Формируем клавиатуру
     keyboard = []
 
     if not db.has_subscription(user_id, 'quotes'):
@@ -154,28 +156,28 @@ def _build_settings_content(user_id: int):
 
 
 async def show_settings_menu(query, user_id: int):
-    """Show settings menu by editing message (for callback buttons)"""
+    """Показать меню настроек редактированием сообщения (для callback-кнопок)"""
     settings_text, reply_markup = _build_settings_content(user_id)
     await query.edit_message_text(settings_text, reply_markup=reply_markup)
 
 
 async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /settings command - show subscription management menu"""
+    """Обработка команды /settings — меню управления подписками"""
     user_id = update.effective_user.id
     settings_text, reply_markup = _build_settings_content(user_id)
     await update.message.reply_text(settings_text, reply_markup=reply_markup)
 
 
 async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /quote command - send random quote from 'quotes' category"""
+    """Обработка команды /quote — отправить случайную цитату из категории 'quotes'"""
     user_id = update.effective_user.id
     user = db.get_user(user_id)
 
     if not user:
         db.add_user(user_id, update.effective_user.username, update.effective_user.first_name)
 
-    # Always send from 'quotes' category (not daily)
-    # Daily quotes are only sent via scheduled subscriptions
+    # Всегда отправляем из категории 'quotes' (не daily)
+    # Ежедневные цитаты отправляются только по расписанию через подписки
     quote = db.get_random_quote(user_id, 'quotes')
 
     if quote:
@@ -186,8 +188,8 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, user_id: int = None):
-    """Send a formatted quote to user with favorite and share buttons"""
-    # Convert sqlite3.Row to dict if needed (Row doesn't support .get())
+    """Отправить отформатированную цитату пользователю с кнопками избранного и шаринга"""
+    # Конвертируем sqlite3.Row в dict при необходимости (Row не поддерживает .get())
     if hasattr(quote, 'keys'):
         quote = dict(quote)
 
@@ -201,7 +203,7 @@ async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, us
         day_of_year=quote.get('day_of_year')
     )
 
-    # Build keyboard with favorite and share buttons
+    # Формируем клавиатуру с кнопками избранного и шаринга
     reply_markup = None
     if user_id:
         is_fav = db.is_favorite(user_id, quote['id'])
@@ -222,19 +224,19 @@ async def send_quote(chat_id: int, quote, context: ContextTypes.DEFAULT_TYPE, us
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle button callbacks for subscription management"""
+    """Обработка callback-кнопок управления подписками"""
     query = update.callback_query
     await query.answer()
 
     user_id = update.effective_user.id
     data = query.data
 
-    # Open settings from welcome message button
+    # Открыть настройки из кнопки приветственного сообщения
     if data == 'open_settings':
         await show_settings_menu(query, user_id)
         return
 
-    # Add subscription OR change time - show time selection
+    # Добавить подписку ИЛИ изменить время — показать выбор времени
     if data.startswith('add_sub_') or data.startswith('change_time_'):
         if data.startswith('add_sub_'):
             category = data.replace('add_sub_', '')
@@ -245,7 +247,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         category_name = config.CATEGORIES.get(category, category)
 
-        # Store category and action in context for next step
+        # Сохраняем категорию и действие в контексте для следующего шага
         context.user_data['pending_subscription_category'] = category
         context.user_data['pending_subscription_action'] = action
 
@@ -257,13 +259,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        # Show time descriptions
+        # Показываем описания времени
         if action == 'add':
             time_desc_text = f"📬 Подписка на: {category_name}\n\n⏰ Выберите время:\n\n"
         else:
             time_desc_text = f"⏰ Изменить время: {category_name}\n\n⏰ Выберите новое время:\n\n"
 
-        # Get descriptions for this category
+        # Получаем описания для данной категории
         cat_descriptions = config.TIME_SLOT_DESCRIPTIONS.get(category, config.TIME_SLOT_DESCRIPTIONS['quotes'])
         time_desc_text += f"{cat_descriptions['morning']}\n\n"
         time_desc_text += f"{cat_descriptions['day']}\n\n"
@@ -271,7 +273,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.edit_message_text(time_desc_text, reply_markup=reply_markup)
 
-    # Time selection for subscription (add or change)
+    # Выбор времени для подписки (добавление или изменение)
     elif data.startswith('select_time_'):
         time_slot = data.replace('select_time_', '')
         category = context.user_data.get('pending_subscription_category')
@@ -281,12 +283,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ Ошибка: категория не выбрана. Попробуйте снова через /settings")
             return
 
-        # Add or update subscription
+        # Добавить или обновить подписку
         success = db.add_subscription(user_id, category, time_slot)
 
         if success:
             if action == 'change':
-                # Show message for time change
+                # Сообщение об изменении времени
                 time_name = config.TIME_SLOTS.get(time_slot, time_slot)
                 category_name = config.CATEGORIES.get(category, category)
                 await query.edit_message_text(
@@ -294,18 +296,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"Используй /settings для управления подписками."
                 )
             else:
-                # Show confirmation message for new subscription
+                # Подтверждение новой подписки
                 confirmation = config.SUBSCRIPTION_CONFIRMATIONS.get(category, {}).get(time_slot,
                     "✅ Подписка оформлена!")
                 await query.edit_message_text(f"{confirmation}\n\nИспользуй /settings для управления подписками.")
         else:
             await query.edit_message_text("❌ Ошибка при оформлении подписки. Попробуйте позже.")
 
-        # Clear context
+        # Очищаем контекст
         context.user_data.pop('pending_subscription_category', None)
         context.user_data.pop('pending_subscription_action', None)
 
-    # Remove subscription
+    # Удалить подписку
     elif data.startswith('remove_sub_'):
         category = data.replace('remove_sub_', '')
         category_name = config.CATEGORIES.get(category, category)
@@ -317,7 +319,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await query.edit_message_text("❌ Ошибка при удалении подписки.")
 
-    # Cancel subscription
+    # Отмена подписки
     elif data == 'cancel_subscription':
         context.user_data.pop('pending_subscription_category', None)
         context.user_data.pop('pending_subscription_action', None)
@@ -325,18 +327,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle favorites-related callbacks (add/remove from favorites, pagination)"""
+    """Обработка callback-ов избранного (добавление/удаление, пагинация)"""
     query = update.callback_query
     user_id = update.effective_user.id
     data = query.data
 
-    # Add to favorites
+    # Добавить в избранное
     if data.startswith('fav_'):
         quote_id = int(data.replace('fav_', ''))
         db.add_to_favorites(user_id, quote_id)
         await query.answer("❤️ Добавлено в избранное!")
 
-        # Update button to "remove", keep share button
+        # Обновить кнопку на «убрать», сохранить кнопку шаринга
         keyboard = [
             [InlineKeyboardButton("💔 Убрать из избранного", callback_data=f"unfav_{quote_id}")],
             [_build_share_button(query.message.text, quote_id=quote_id)]
@@ -344,13 +346,13 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_reply_markup(reply_markup=reply_markup)
 
-    # Remove from favorites
+    # Убрать из избранного
     elif data.startswith('unfav_'):
         quote_id = int(data.replace('unfav_', ''))
         db.remove_from_favorites(user_id, quote_id)
         await query.answer("💔 Удалено из избранного")
 
-        # Update button to "add", keep share button
+        # Обновить кнопку на «добавить», сохранить кнопку шаринга
         keyboard = [
             [InlineKeyboardButton("❤️ В избранное", callback_data=f"fav_{quote_id}")],
             [_build_share_button(query.message.text, quote_id=quote_id)]
@@ -358,23 +360,23 @@ async def favorites_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_reply_markup(reply_markup=reply_markup)
 
-    # Favorites pagination
+    # Пагинация избранного
     elif data.startswith('favpage_'):
         page = int(data.replace('favpage_', ''))
         await show_favorites_page(query, user_id, page)
 
-    # Delete from favorites list view
+    # Удалить из списка избранного
     elif data.startswith('favdel_'):
         quote_id = int(data.replace('favdel_', ''))
         db.remove_from_favorites(user_id, quote_id)
         await query.answer("🗑 Удалено из избранного")
-        # Refresh current page
+        # Обновить текущую страницу
         page = context.user_data.get('favorites_page', 0)
         await show_favorites_page(query, user_id, page)
 
 
 async def favorites_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /favorites command - show user's favorite quotes"""
+    """Обработка команды /favorites — показать избранные цитаты пользователя"""
     user_id = update.effective_user.id
     context.user_data['favorites_page'] = 0
 
@@ -393,7 +395,7 @@ async def favorites_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def show_favorites_page(query, user_id: int, page: int):
-    """Show a specific page of favorites"""
+    """Показать конкретную страницу избранного"""
     total = db.count_user_favorites(user_id)
 
     if total == 0:
@@ -403,7 +405,7 @@ async def show_favorites_page(query, user_id: int, page: int):
         )
         return
 
-    # Ensure page is within bounds
+    # Проверяем границы страницы
     if page < 0:
         page = 0
     if page >= total:
@@ -413,7 +415,7 @@ async def show_favorites_page(query, user_id: int, page: int):
     if favorites:
         fav = favorites[0]
         message = format_favorite_message(fav, page, total)
-        # Get quote text for sharing (without the header and bot link)
+        # Получаем текст цитаты для шаринга (без заголовка и ссылки на бота)
         share_text = format_quote_for_telegram(
             quote_text=dict(fav)['text'] if hasattr(fav, 'keys') else fav['text'],
             category=dict(fav)['category'] if hasattr(fav, 'keys') else fav['category'],
@@ -429,9 +431,9 @@ async def show_favorites_page(query, user_id: int, page: int):
 
 
 async def send_favorite_quote(message_obj, fav, page: int, total: int):
-    """Send a favorite quote with navigation"""
+    """Отправить избранную цитату с навигацией"""
     msg = format_favorite_message(fav, page, total)
-    # Get quote text for sharing (without the header and bot link)
+    # Получаем текст цитаты для шаринга (без заголовка и ссылки на бота)
     share_text = format_quote_for_telegram(
         quote_text=dict(fav)['text'] if hasattr(fav, 'keys') else fav['text'],
         category=dict(fav)['category'] if hasattr(fav, 'keys') else fav['category'],
@@ -447,8 +449,8 @@ async def send_favorite_quote(message_obj, fav, page: int, total: int):
 
 
 def format_favorite_message(fav, page: int, total: int) -> str:
-    """Format a favorite quote for display"""
-    # Convert Row to dict if needed
+    """Форматировать избранную цитату для отображения"""
+    # Конвертируем Row в dict при необходимости
     if hasattr(fav, 'keys'):
         fav = dict(fav)
 
@@ -467,10 +469,10 @@ def format_favorite_message(fav, page: int, total: int) -> str:
 
 
 def build_favorites_keyboard(quote_id: int, page: int, total: int, share_text: str = None) -> list:
-    """Build keyboard for favorites navigation"""
+    """Сформировать клавиатуру навигации по избранному"""
     keyboard = []
 
-    # Navigation row
+    # Ряд навигации
     nav_row = []
     if page > 0:
         nav_row.append(InlineKeyboardButton("◀️", callback_data=f"favpage_{page - 1}"))
@@ -479,10 +481,10 @@ def build_favorites_keyboard(quote_id: int, page: int, total: int, share_text: s
     if nav_row:
         keyboard.append(nav_row)
 
-    # Delete button
+    # Кнопка удаления
     keyboard.append([InlineKeyboardButton("🗑 Удалить из избранного", callback_data=f"favdel_{quote_id}")])
 
-    # Share button
+    # Кнопка шаринга
     if share_text:
         keyboard.append([_build_share_button(share_text, quote_id=quote_id)])
 

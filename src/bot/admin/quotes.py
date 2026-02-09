@@ -1,4 +1,4 @@
-"""Admin handlers for quote management (add, edit, delete)"""
+"""Админские обработчики управления цитатами (добавление, редактирование, удаление)"""
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -12,17 +12,17 @@ from telegram.ext import (
 from src.bot.admin.common import admin_required, db
 import config
 
-# Conversation states
+# Состояния диалогов
 (ADD_TEXT, ADD_AUTHOR, ADD_SOURCE,
  EDIT_SEARCH, EDIT_SELECT, EDIT_FIELD, EDIT_VALUE,
  DELETE_SEARCH, DELETE_CONFIRM) = range(9)
 
 
-# ============== ADD QUOTE ==============
+# ============== ДОБАВЛЕНИЕ ЦИТАТЫ ==============
 
 @admin_required
 async def admin_add_quote_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start adding a new quote"""
+    """Начать добавление новой цитаты"""
     await update.message.reply_text(
         "📝 Добавление новой цитаты\n\n"
         "Отправьте текст цитаты (без атрибуции).\n\n"
@@ -33,10 +33,10 @@ async def admin_add_quote_start(update: Update, context: ContextTypes.DEFAULT_TY
 
 @admin_required
 async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive quote text and ask for author"""
+    """Получить текст цитаты и запросить автора"""
     text = update.message.text.strip()
 
-    # Check for duplicates
+    # Проверка на дубликаты
     existing = db.find_exact_duplicate(text)
     if existing:
         await update.message.reply_text(
@@ -48,7 +48,7 @@ async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return ConversationHandler.END
 
-    # Store text for later
+    # Сохраняем текст для дальнейшего использования
     context.user_data['quote_text'] = text
 
     await update.message.reply_text(
@@ -61,7 +61,7 @@ async def admin_add_quote_text(update: Update, context: ContextTypes.DEFAULT_TYP
 
 @admin_required
 async def admin_add_quote_author(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive author and ask for source"""
+    """Получить автора и запросить источник"""
     author = update.message.text.strip()
     context.user_data['quote_author'] = author
 
@@ -76,7 +76,7 @@ async def admin_add_quote_author(update: Update, context: ContextTypes.DEFAULT_T
 
 @admin_required
 async def admin_add_quote_source(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive source and save the quote"""
+    """Получить источник и сохранить цитату"""
     source = update.message.text.strip()
     if source == '-':
         source = None
@@ -85,10 +85,10 @@ async def admin_add_quote_source(update: Update, context: ContextTypes.DEFAULT_T
     quote_author = context.user_data.get('quote_author')
     quote_source = source
 
-    # Get or create manual quotes book for Telegram
+    # Получить или создать книгу для ручных цитат из Telegram
     manual_book_id = db.get_or_create_manual_book(source='Telegram')
 
-    # Add quote to database
+    # Добавить цитату в базу данных
     quote_id = db.add_quote(
         text=quote_text,
         category='quotes',
@@ -97,7 +97,7 @@ async def admin_add_quote_source(update: Update, context: ContextTypes.DEFAULT_T
         quote_source=quote_source
     )
 
-    # Build confirmation message
+    # Формируем сообщение-подтверждение
     attr_parts = []
     if quote_author:
         attr_parts.append(f"Автор: {quote_author}")
@@ -120,7 +120,7 @@ async def admin_add_quote_source(update: Update, context: ContextTypes.DEFAULT_T
 
 @admin_required
 async def admin_add_quote_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle category selection and save quote"""
+    """Обработка выбора категории и сохранение цитаты"""
     query = update.callback_query
     await query.answer()
 
@@ -130,10 +130,10 @@ async def admin_add_quote_category(update: Update, context: ContextTypes.DEFAULT
 
     category = query.data.replace('add_cat_', '')
 
-    # Get or create manual quotes book for Telegram
+    # Получить или создать книгу для ручных цитат из Telegram
     manual_book_id = db.get_or_create_manual_book(source='Telegram')
 
-    # Add quote to database
+    # Добавить цитату в базу данных
     quote_id = db.add_quote(
         text=context.user_data['quote_text'],
         category=category,
@@ -149,16 +149,16 @@ async def admin_add_quote_category(update: Update, context: ContextTypes.DEFAULT
         f"Категория: {category_name}"
     )
 
-    # Clear context
+    # Очищаем контекст
     context.user_data.clear()
     return ConversationHandler.END
 
 
-# ============== DELETE QUOTE ==============
+# ============== УДАЛЕНИЕ ЦИТАТЫ ==============
 
 @admin_required
 async def admin_delete_quote_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start deleting a quote"""
+    """Начать удаление цитаты"""
     await update.message.reply_text(
         "🗑 Удаление цитаты\n\n"
         "Отправьте:\n"
@@ -171,10 +171,10 @@ async def admin_delete_quote_start(update: Update, context: ContextTypes.DEFAULT
 
 @admin_required
 async def admin_delete_quote_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Search for quote to delete"""
+    """Поиск цитаты для удаления"""
     search = update.message.text.strip()
 
-    # Try as ID first
+    # Сначала пробуем как ID
     if search.isdigit():
         quote_id = int(search)
         quotes = db.get_all_quotes()
@@ -189,7 +189,7 @@ async def admin_delete_quote_search(update: Update, context: ContextTypes.DEFAUL
 
         matching_quotes = [quote]
     else:
-        # Search by text
+        # Поиск по тексту
         quotes = db.get_all_quotes()
         matching_quotes = [q for q in quotes if search.lower() in q['text'].lower()]
 
@@ -207,11 +207,11 @@ async def admin_delete_quote_search(update: Update, context: ContextTypes.DEFAUL
             )
             return DELETE_SEARCH
 
-    # Store matches
+    # Сохраняем найденные совпадения
     context.user_data['delete_quotes'] = matching_quotes
 
     if len(matching_quotes) == 1:
-        # Show single quote for confirmation
+        # Показать одну цитату для подтверждения
         quote = matching_quotes[0]
         preview = quote['text'][:300] + "..." if len(quote['text']) > 300 else quote['text']
 
@@ -226,7 +226,7 @@ async def admin_delete_quote_search(update: Update, context: ContextTypes.DEFAUL
         category_name = config.CATEGORIES.get(quote['category'], quote['category'])
         book_info = f"📚 Книга: {quote['title']}\n" if quote['title'] else ""
 
-        # Attribution info
+        # Информация об атрибуции
         attr_info = ""
         if quote['quote_author'] or quote['quote_source']:
             parts = []
@@ -248,7 +248,7 @@ async def admin_delete_quote_search(update: Update, context: ContextTypes.DEFAUL
         )
         return DELETE_CONFIRM
     else:
-        # Show multiple options
+        # Показать несколько вариантов
         keyboard = []
         for q in matching_quotes[:10]:
             short_text = q['text'][:40] + "..." if len(q['text']) > 40 else q['text']
@@ -273,7 +273,7 @@ async def admin_delete_quote_search(update: Update, context: ContextTypes.DEFAUL
 
 @admin_required
 async def admin_delete_quote_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle delete confirmation callback"""
+    """Обработка callback подтверждения удаления"""
     query = update.callback_query
     await query.answer()
 
@@ -283,7 +283,7 @@ async def admin_delete_quote_callback(update: Update, context: ContextTypes.DEFA
         return ConversationHandler.END
 
     if query.data.startswith('del_select_'):
-        # Show selected quote for confirmation
+        # Показать выбранную цитату для подтверждения
         quote_id = int(query.data.replace('del_select_', ''))
         quotes = context.user_data.get('delete_quotes', [])
         quote = next((q for q in quotes if q['id'] == quote_id), None)
@@ -305,7 +305,7 @@ async def admin_delete_quote_callback(update: Update, context: ContextTypes.DEFA
         category_name = config.CATEGORIES.get(quote['category'], quote['category'])
         book_info = f"📚 Книга: {quote['title']}\n" if quote['title'] else ""
 
-        # Attribution info
+        # Информация об атрибуции
         attr_info = ""
         if quote['quote_author'] or quote['quote_source']:
             parts = []
@@ -328,7 +328,7 @@ async def admin_delete_quote_callback(update: Update, context: ContextTypes.DEFA
         return DELETE_CONFIRM
 
     if query.data.startswith('del_confirm_'):
-        # Delete the quote
+        # Удалить цитату
         quote_id = int(query.data.replace('del_confirm_', ''))
 
         if db.delete_quote(quote_id):
@@ -340,11 +340,11 @@ async def admin_delete_quote_callback(update: Update, context: ContextTypes.DEFA
         return ConversationHandler.END
 
 
-# ============== EDIT QUOTE ==============
+# ============== РЕДАКТИРОВАНИЕ ЦИТАТЫ ==============
 
 @admin_required
 async def admin_edit_quote_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start editing a quote"""
+    """Начать редактирование цитаты"""
     await update.message.reply_text(
         "✏️ Редактирование цитаты\n\n"
         "Отправьте:\n"
@@ -357,10 +357,10 @@ async def admin_edit_quote_start(update: Update, context: ContextTypes.DEFAULT_T
 
 @admin_required
 async def admin_edit_quote_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Search for quote to edit"""
+    """Поиск цитаты для редактирования"""
     search = update.message.text.strip()
 
-    # Try as ID first
+    # Сначала пробуем как ID
     if search.isdigit():
         quote_id = int(search)
         quotes = db.get_all_quotes()
@@ -375,7 +375,7 @@ async def admin_edit_quote_search(update: Update, context: ContextTypes.DEFAULT_
 
         matching_quotes = [quote]
     else:
-        # Search by text
+        # Поиск по тексту
         quotes = db.get_all_quotes()
         matching_quotes = [q for q in quotes if search.lower() in q['text'].lower()]
 
@@ -393,16 +393,16 @@ async def admin_edit_quote_search(update: Update, context: ContextTypes.DEFAULT_
             )
             return EDIT_SEARCH
 
-    # Store matches
+    # Сохраняем найденные совпадения
     context.user_data['edit_quotes'] = matching_quotes
 
     if len(matching_quotes) == 1:
-        # Show single quote
+        # Показать одну цитату
         quote = matching_quotes[0]
         context.user_data['edit_quote_id'] = quote['id']
         return await show_edit_menu(update, quote, is_callback=False)
     else:
-        # Show multiple options
+        # Показать несколько вариантов
         keyboard = []
         for q in matching_quotes[:10]:
             short_text = q['text'][:40] + "..." if len(q['text']) > 40 else q['text']
@@ -426,7 +426,7 @@ async def admin_edit_quote_search(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def show_edit_menu(update: Update, quote: dict, is_callback: bool = True):
-    """Show edit menu for a quote"""
+    """Показать меню редактирования цитаты"""
     preview = quote['text'][:200] + "..." if len(quote['text']) > 200 else quote['text']
 
     attr_info = ""
@@ -467,7 +467,7 @@ async def show_edit_menu(update: Update, quote: dict, is_callback: bool = True):
 
 @admin_required
 async def admin_edit_quote_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle quote selection for editing"""
+    """Обработка выбора цитаты для редактирования"""
     query = update.callback_query
     await query.answer()
 
@@ -490,7 +490,7 @@ async def admin_edit_quote_select(update: Update, context: ContextTypes.DEFAULT_
 
 @admin_required
 async def admin_edit_quote_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle field selection for editing"""
+    """Обработка выбора поля для редактирования"""
     query = update.callback_query
     await query.answer()
 
@@ -504,7 +504,7 @@ async def admin_edit_quote_field(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data.clear()
         return ConversationHandler.END
 
-    # Handle "Show full text" button
+    # Обработка кнопки «Показать полностью»
     if query.data == 'edit_show_full':
         quote_id = context.user_data.get('edit_quote_id')
         quotes = db.get_all_quotes()
@@ -514,7 +514,7 @@ async def admin_edit_quote_field(update: Update, context: ContextTypes.DEFAULT_T
             await query.edit_message_text("❌ Ошибка: цитата не найдена.")
             return ConversationHandler.END
 
-        # Send full text in a new message
+        # Отправить полный текст в новом сообщении
         full_text = quote['text']
         attr_parts = []
         if quote['quote_author']:
@@ -528,7 +528,7 @@ async def admin_edit_quote_field(update: Update, context: ContextTypes.DEFAULT_T
             full_message += f"\n\n— {attribution}"
 
         await query.message.reply_text(full_message)
-        # Return to edit menu
+        # Вернуться в меню редактирования
         return await show_edit_menu(update, quote)
 
     field = query.data.replace('edit_field_', '')
@@ -564,7 +564,7 @@ async def admin_edit_quote_field(update: Update, context: ContextTypes.DEFAULT_T
 
 @admin_required
 async def admin_edit_quote_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle new value input for editing"""
+    """Обработка ввода нового значения для редактирования"""
     quote_id = context.user_data.get('edit_quote_id')
     field = context.user_data.get('edit_field')
 
@@ -572,7 +572,7 @@ async def admin_edit_quote_value(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text("❌ Ошибка: потеряны данные сессии.")
         return ConversationHandler.END
 
-    # Handle callback (category selection)
+    # Обработка callback (выбор категории)
     if update.callback_query:
         query = update.callback_query
         await query.answer()
@@ -589,12 +589,12 @@ async def admin_edit_quote_value(update: Update, context: ContextTypes.DEFAULT_T
         new_value = query.data.replace('edit_cat_', '')
         field = 'category'
     else:
-        # Handle text input
+        # Обработка текстового ввода
         new_value = update.message.text.strip()
         if new_value == '-':
             new_value = None
 
-    # Update database
+    # Обновляем базу данных
     field_map = {
         'text': 'text',
         'category': 'category',
@@ -604,7 +604,7 @@ async def admin_edit_quote_value(update: Update, context: ContextTypes.DEFAULT_T
 
     db_field = field_map[field]
 
-    # Get current quote
+    # Получаем текущую цитату
     quotes = db.get_all_quotes()
     quote = next((q for q in quotes if q['id'] == quote_id), None)
 
@@ -616,18 +616,18 @@ async def admin_edit_quote_value(update: Update, context: ContextTypes.DEFAULT_T
             await update.message.reply_text(msg)
         return ConversationHandler.END
 
-    # Update quote
+    # Обновляем цитату
     success = db.update_quote(quote_id, **{db_field: new_value})
 
     if success:
-        # Get updated quote
+        # Получаем обновлённую цитату
         quotes = db.get_all_quotes()
         quote = next((q for q in quotes if q['id'] == quote_id), None)
 
         if update.callback_query:
             return await show_edit_menu(update, quote)
         else:
-            # For text input, need to send new message
+            # Для текстового ввода нужно отправить новое сообщение
             await update.message.reply_text("✅ Значение обновлено!")
             return await show_edit_menu(update, quote, is_callback=False)
     else:
@@ -641,16 +641,16 @@ async def admin_edit_quote_value(update: Update, context: ContextTypes.DEFAULT_T
 
 @admin_required
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancel current operation"""
+    """Отменить текущую операцию"""
     await update.message.reply_text("❌ Операция отменена.")
     context.user_data.clear()
     return ConversationHandler.END
 
 
-# ============== CONVERSATION HANDLERS ==============
+# ============== ОБРАБОТЧИКИ ДИАЛОГОВ ==============
 
 def get_add_quote_handler():
-    """Get conversation handler for adding quotes"""
+    """Получить обработчик диалога добавления цитат"""
     return ConversationHandler(
         entry_points=[CommandHandler('admin_add', admin_add_quote_start)],
         states={
@@ -663,7 +663,7 @@ def get_add_quote_handler():
 
 
 def get_delete_quote_handler():
-    """Get conversation handler for deleting quotes"""
+    """Получить обработчик диалога удаления цитат"""
     return ConversationHandler(
         entry_points=[CommandHandler('admin_delete', admin_delete_quote_start)],
         states={
@@ -675,7 +675,7 @@ def get_delete_quote_handler():
 
 
 def get_edit_quote_handler():
-    """Get conversation handler for editing quotes"""
+    """Получить обработчик диалога редактирования цитат"""
     return ConversationHandler(
         entry_points=[CommandHandler('admin_edit', admin_edit_quote_start)],
         states={

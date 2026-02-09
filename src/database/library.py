@@ -1,13 +1,15 @@
+"""Миксин операций с библиотекой книг и файлами."""
+
 from typing import List, Optional, Tuple
 
 
 class LibraryMixin:
-    """Library books and book files operations"""
+    """Операции с библиотекой книг и файлами"""
 
-    # Library books operations
+    # Операции с книгами библиотеки
     def add_library_book(self, title: str, author: str, description: str = None,
                          buy_url: str = None, category: str = None) -> int:
-        """Add a new book to the library"""
+        """Добавить книгу в библиотеку"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -21,7 +23,7 @@ class LibraryMixin:
 
     def update_library_book(self, book_id: int, title: str = None, author: str = None,
                             description: str = None, buy_url: str = None, category: str = None) -> bool:
-        """Update library book info"""
+        """Обновить информацию о книге в библиотеке"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
@@ -58,7 +60,7 @@ class LibraryMixin:
         return updated
 
     def delete_library_book(self, book_id: int) -> bool:
-        """Delete a library book and all its files"""
+        """Удалить книгу из библиотеки и все её файлы"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('DELETE FROM library_books WHERE id = ?', (book_id,))
@@ -68,7 +70,7 @@ class LibraryMixin:
         return deleted
 
     def set_book_display_order(self, book_id: int, order: int) -> bool:
-        """Set display order for a library book"""
+        """Установить порядок отображения книги"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -82,7 +84,7 @@ class LibraryMixin:
         return updated
 
     def get_library_book(self, book_id: int) -> Optional[Tuple]:
-        """Get a single library book by ID"""
+        """Получить книгу библиотеки по ID"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -95,7 +97,7 @@ class LibraryMixin:
         return book
 
     def get_all_library_books(self, limit: int = None, offset: int = 0, category: str = None) -> List[Tuple]:
-        """Get all library books with pagination, sorted by display_order then author"""
+        """Получить все книги библиотеки с пагинацией, сортировка по порядку и автору"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
@@ -126,7 +128,7 @@ class LibraryMixin:
         return books
 
     def count_library_books(self, category: str = None) -> int:
-        """Count total library books"""
+        """Подсчитать количество книг в библиотеке"""
         conn = self.get_connection()
         cursor = conn.cursor()
         if category:
@@ -138,7 +140,7 @@ class LibraryMixin:
         return count
 
     def get_library_authors(self) -> List[str]:
-        """Get unique authors from library"""
+        """Получить уникальных авторов из библиотеки"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -151,7 +153,7 @@ class LibraryMixin:
         return authors
 
     def get_library_books_by_author(self, author: str) -> List[Tuple]:
-        """Get all library books by a specific author"""
+        """Получить все книги библиотеки конкретного автора"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -165,7 +167,7 @@ class LibraryMixin:
         return books
 
     def get_library_categories_with_counts(self) -> dict:
-        """Get count of books in each category"""
+        """Получить количество книг в каждой категории"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -178,11 +180,11 @@ class LibraryMixin:
         conn.close()
         return result
 
-    # Book files operations
+    # Операции с файлами книг
     def add_book_file(self, library_book_id: int, format: str,
                       file_id: str = None, file_path: str = None,
                       file_size: int = None) -> int:
-        """Add a file format to a library book"""
+        """Добавить файл формата к книге библиотеки"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -199,7 +201,7 @@ class LibraryMixin:
         return file_record_id
 
     def update_book_file_id(self, library_book_id: int, format: str, file_id: str) -> bool:
-        """Update Telegram file_id for a book file (for caching)"""
+        """Обновить Telegram file_id для файла книги (для кэширования)"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -213,7 +215,7 @@ class LibraryMixin:
         return updated
 
     def get_book_files(self, library_book_id: int) -> List[Tuple]:
-        """Get all files for a library book"""
+        """Получить все файлы книги библиотеки"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -227,7 +229,7 @@ class LibraryMixin:
         return files
 
     def get_book_file(self, library_book_id: int, format: str) -> Optional[Tuple]:
-        """Get a specific file format for a book"""
+        """Получить конкретный формат файла книги"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -240,7 +242,7 @@ class LibraryMixin:
         return file
 
     def delete_book_file(self, library_book_id: int, format: str) -> bool:
-        """Delete a specific file format from a book"""
+        """Удалить конкретный формат файла книги"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''

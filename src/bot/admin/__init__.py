@@ -1,3 +1,5 @@
+"""Пакет админских обработчиков бота: цитаты, статистика, рассылка."""
+
 from src.bot.admin.quotes import (
     get_add_quote_handler,
     get_delete_quote_handler,

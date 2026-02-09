@@ -1,37 +1,39 @@
+"""Конфигурация бота: токены, настройки подписок, категории, библиотека."""
+
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Telegram Bot Configuration
+# Конфигурация Telegram бота
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
-# Admin User IDs (supports multiple admins)
-# Can be a single ID or comma-separated list of IDs
+# ID администраторов (поддерживается несколько)
+# Может быть один ID или список через запятую
 admin_ids_str = os.getenv('ADMIN_USER_IDS', os.getenv('ADMIN_USER_ID', '0'))
 ADMIN_USER_IDS = [int(id.strip()) for id in admin_ids_str.split(',') if id.strip()]
 
-# Backward compatibility - keep ADMIN_USER_ID as the first admin
+# Обратная совместимость — ADMIN_USER_ID как первый администратор
 ADMIN_USER_ID = ADMIN_USER_IDS[0] if ADMIN_USER_IDS else 0
 
-# Database Configuration
-# Use environment variable for deployment, fallback to local file for development
+# Конфигурация базы данных
+# Используем переменную окружения для продакшена, локальный файл для разработки
 DATABASE_PATH = os.getenv('DATABASE_PATH', 'bestoic_bot.db')
 
-# Time Slots for Notifications
+# Временные слоты для уведомлений
 TIME_SLOTS = {
     'morning': '08:00',
     'day': '14:00',
     'evening': '20:00'
 }
 
-# Categories
+# Категории
 CATEGORIES = {
     'quotes': 'Цитаты',
     'daily': 'Стоицизм на каждый день'
 }
 
-# Time Slot Descriptions (motivational messages when selecting time)
+# Описания временных слотов (мотивационные сообщения при выборе времени)
 TIME_SLOT_DESCRIPTIONS = {
     'quotes': {
         'morning': '🌅 Утренняя цитата — как чашка кофе для ума: бодрит, фокусирует, напоминает, что вы сильнее обстоятельств.',
@@ -45,7 +47,7 @@ TIME_SLOT_DESCRIPTIONS = {
     }
 }
 
-# Subscription Confirmation Messages (category + time)
+# Сообщения подтверждения подписки (категория + время)
 SUBSCRIPTION_CONFIRMATIONS = {
     'quotes': {
         'morning': 'Отлично! Теперь каждое утро в 8:00 вас будет ждать цитата стоика. Пусть утро будет мудрым!',
@@ -59,15 +61,15 @@ SUBSCRIPTION_CONFIRMATIONS = {
     }
 }
 
-# Library settings
-BOOKS_PER_PAGE = 5  # Number of books per page in /books command
-BOOK_FILES_PATH = os.getenv('BOOK_FILES_PATH', 'data/books')  # Path to store book files
+# Настройки библиотеки
+BOOKS_PER_PAGE = 5  # Количество книг на странице в команде /books
+BOOK_FILES_PATH = os.getenv('BOOK_FILES_PATH', 'data/books')  # Путь хранения файлов книг
 
-# Library book categories
+# Категории книг библиотеки
 LIBRARY_CATEGORIES = {
     'classic': 'Классические труды',
     'modern': 'Современные авторы'
 }
 
-# Bot username for sharing
+# Имя бота для функции «Поделиться»
 BOT_USERNAME = os.getenv('BOT_USERNAME', 'bestoic_bot')

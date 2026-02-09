@@ -1,4 +1,4 @@
-"""Admin handlers for user and quote statistics"""
+"""Админские обработчики статистики пользователей и цитат"""
 
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
@@ -8,11 +8,11 @@ import config
 
 @admin_required
 async def admin_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show user statistics for admin"""
+    """Показать статистику пользователей для администратора"""
     stats = db.get_user_statistics()
     users_data = db.get_all_users_with_subscriptions()
 
-    # Build message
+    # Формируем сообщение
     message = "📊 *СТАТИСТИКА ПОЛЬЗОВАТЕЛЕЙ*\n\n"
     message += f"👥 Всего пользователей: *{stats['total_users']}*\n"
     message += f"✅ С активными подписками: *{stats['active_subscribers']}*\n"
@@ -32,18 +32,18 @@ async def admin_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             if time in stats['by_time_slot']:
                 message += f"   {time_names[time]}: {stats['by_time_slot'][time]}\n"
 
-    # Show last 10 users
+    # Показать последних 10 пользователей
     if users_data:
         message += "\n👤 *Последние пользователи:*\n"
         for i, user in enumerate(users_data[:10], 1):
             if user['username']:
-                # Escape underscores for Markdown
+                # Экранируем подчёркивания для Markdown
                 escaped_username = user['username'].replace('_', '\\_')
                 username = f"@{escaped_username}"
             else:
                 username = user['first_name'] or f"ID:{user['user_id']}"
 
-            # Parse subscriptions
+            # Разбираем подписки
             subs = user['subscriptions'] or '—'
             if subs != '—':
                 sub_parts = []
@@ -61,19 +61,19 @@ async def admin_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 def get_admin_users_handler():
-    """Get handler for /admin_users command"""
+    """Получить обработчик команды /admin_users"""
     return CommandHandler('admin_users', admin_users_command)
 
 
 @admin_required
 async def admin_quote_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show quote statistics (favorites)"""
+    """Показать статистику цитат (избранное)"""
     _ = context  # unused
     stats = db.get_favorites_statistics(limit=10)
 
     message = "📊 *СТАТИСТИКА ПО ИЗБРАННОМУ*\n\n"
 
-    # Top quotes
+    # Топ цитат
     if stats['top_quotes']:
         message += f"💎 *ТОП-{len(stats['top_quotes'])} ЦИТАТ:*\n\n"
         for i, quote in enumerate(stats['top_quotes'], 1):
@@ -93,7 +93,7 @@ async def admin_quote_stats_command(update: Update, context: ContextTypes.DEFAUL
     else:
         message += "Нет цитат в избранном\n\n"
 
-    # By category
+    # По категориям
     if stats['by_category']:
         message += "📈 *ПО КАТЕГОРИЯМ:*\n"
         for category, count in stats['by_category'].items():
@@ -102,7 +102,7 @@ async def admin_quote_stats_command(update: Update, context: ContextTypes.DEFAUL
             message += f"   {emoji} {cat_name}: {count} цитат\n"
         message += "\n"
 
-    # Overall statistics
+    # Общая статистика
     message += "📊 *ОБЩАЯ СТАТИСТИКА:*\n"
     message += f"   Всего цитат: {stats['total_quotes']}\n"
     percent_in_fav = stats['quotes_in_favorites']/stats['total_quotes']*100 if stats['total_quotes'] > 0 else 0
@@ -114,5 +114,5 @@ async def admin_quote_stats_command(update: Update, context: ContextTypes.DEFAUL
 
 
 def get_admin_quote_stats_handler():
-    """Get handler for /admin_quote_stats command"""
+    """Получить обработчик команды /admin_quote_stats"""
     return CommandHandler('admin_quote_stats', admin_quote_stats_command)

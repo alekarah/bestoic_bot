@@ -1,4 +1,4 @@
-"""CLI commands for library management (downloadable books)"""
+"""CLI команды для управления библиотекой (скачиваемые книги)"""
 
 import os
 import click
@@ -49,7 +49,7 @@ def library_list(category):
     click.echo('='*115)
 
     for b in books:
-        # Get file formats for this book
+        # Получаем форматы файлов для этой книги
         files = db.get_book_files(b['id'])
         formats = ', '.join([f['format'] for f in files]) if files else '—'
         order_str = f'[{b["display_order"]}]' if b["display_order"] < 999 else '—'
@@ -86,7 +86,7 @@ def library_view(book_id):
         click.echo('-'*60)
         click.echo(f'Купить: {b["buy_url"]}')
 
-    # Show files
+    # Показать файлы
     files = db.get_book_files(book_id)
     click.echo('-'*60)
     click.echo('Файлы:')
@@ -115,7 +115,7 @@ def library_edit(book_id, title, author, description, buy_url, category):
         click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
         return
 
-    # If no options provided, prompt for each
+    # Если параметры не указаны, запрашиваем каждый
     if not any([title, author, description, buy_url, category]):
         click.echo(f'Текущее название: {b["title"]}')
         title = click.prompt('Новое название', default=b['title'])
@@ -177,7 +177,7 @@ def library_add_file(book_id, file_path, file_format):
         click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
         return
 
-    # Determine format from extension if not provided
+    # Определяем формат по расширению файла, если не указан
     if not file_format:
         ext = os.path.splitext(file_path)[1].lower().lstrip('.')
         if ext in ['fb2', 'epub', 'mobi', 'pdf']:
@@ -186,10 +186,10 @@ def library_add_file(book_id, file_path, file_format):
             click.echo(f'✗ Неизвестный формат: {ext}. Укажите --format', err=True)
             return
 
-    # Get file size
+    # Получаем размер файла
     file_size = os.path.getsize(file_path)
 
-    # Store absolute path
+    # Сохраняем абсолютный путь
     abs_path = os.path.abspath(file_path)
 
     db.add_book_file(book_id, file_format, file_path=abs_path, file_size=file_size)

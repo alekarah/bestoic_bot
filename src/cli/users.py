@@ -1,4 +1,4 @@
-"""CLI commands for user management"""
+"""CLI команды для управления пользователями"""
 
 import click
 from src.cli.common import db
@@ -31,10 +31,10 @@ def users_list(limit):
         username = user['username'] or '—'
         first_name = user['first_name'] or '—'
 
-        # Parse subscriptions
+        # Разбираем подписки
         subs = user['subscriptions'] or '—'
         if subs != '—':
-            # Format: "quotes:morning, daily:evening" -> "Quotes 8:00, Daily 14:00"
+            # Формат: "quotes:morning, daily:evening" -> "Quotes 8:00, Daily 14:00"
             sub_parts = []
             for sub in subs.split(', '):
                 if ':' in sub:

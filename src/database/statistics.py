@@ -1,11 +1,13 @@
+"""Миксин статистики и аналитики пользователей."""
+
 from typing import List, Optional
 
 
 class StatisticsMixin:
-    """User statistics and analytics operations"""
+    """Статистика и аналитика пользователей"""
 
     def get_all_users_with_subscriptions(self) -> List[dict]:
-        """Get all users with their subscription information"""
+        """Получить всех пользователей с информацией о подписках"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -26,22 +28,22 @@ class StatisticsMixin:
         return [dict(user) for user in users]
 
     def get_user_statistics(self) -> dict:
-        """Get overall user statistics"""
+        """Получить общую статистику пользователей"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        # Total users
+        # Всего пользователей
         cursor.execute('SELECT COUNT(*) FROM users')
         total_users = cursor.fetchone()[0]
 
-        # Active users (with at least one subscription)
+        # Активные пользователи (хотя бы одна подписка)
         cursor.execute('''
             SELECT COUNT(DISTINCT user_id)
             FROM user_subscriptions
         ''')
         active_subscribers = cursor.fetchone()[0]
 
-        # Users by category
+        # Пользователи по категориям
         cursor.execute('''
             SELECT category, COUNT(DISTINCT user_id) as count
             FROM user_subscriptions
@@ -49,7 +51,7 @@ class StatisticsMixin:
         ''')
         by_category = {row['category']: row['count'] for row in cursor.fetchall()}
 
-        # Users by time slot
+        # Пользователи по времени
         cursor.execute('''
             SELECT time_slot, COUNT(DISTINCT user_id) as count
             FROM user_subscriptions
@@ -67,11 +69,11 @@ class StatisticsMixin:
         }
 
     def get_user_detail(self, user_id: int) -> Optional[dict]:
-        """Get detailed information about a specific user"""
+        """Получить детальную информацию о пользователе"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        # Get user info
+        # Получить информацию о пользователе
         cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
         user = cursor.fetchone()
 
@@ -81,7 +83,7 @@ class StatisticsMixin:
 
         user_dict = dict(user)
 
-        # Get subscriptions
+        # Получить подписки
         cursor.execute('''
             SELECT category, time_slot, created_at
             FROM user_subscriptions
@@ -89,7 +91,7 @@ class StatisticsMixin:
         ''', (user_id,))
         user_dict['subscriptions'] = [dict(row) for row in cursor.fetchall()]
 
-        # Get favorites count
+        # Получить количество избранного
         cursor.execute('''
             SELECT COUNT(*) as count
             FROM favorites
@@ -97,7 +99,7 @@ class StatisticsMixin:
         ''', (user_id,))
         user_dict['favorites_count'] = cursor.fetchone()['count']
 
-        # Get last sent quote
+        # Получить последнюю отправленную цитату
         cursor.execute('''
             SELECT sent_at
             FROM sent_quotes
@@ -112,11 +114,11 @@ class StatisticsMixin:
         return user_dict
 
     def get_favorites_statistics(self, limit: int = 10) -> dict:
-        """Get statistics about favorites"""
+        """Получить статистику по избранному"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        # Get top quotes by favorites count (only non-zero)
+        # Топ цитат по количеству добавлений в избранное (только ненулевые)
         cursor.execute('''
             SELECT q.id, q.text, q.category, q.quote_author, q.quote_source,
                    COUNT(f.id) as favorites_count
@@ -129,7 +131,7 @@ class StatisticsMixin:
         ''', (limit,))
         top_quotes = [dict(row) for row in cursor.fetchall()]
 
-        # Get statistics by category
+        # Статистика по категориям
         cursor.execute('''
             SELECT q.category, COUNT(DISTINCT f.quote_id) as unique_quotes
             FROM favorites f
@@ -138,7 +140,7 @@ class StatisticsMixin:
         ''')
         by_category = {row['category']: row['unique_quotes'] for row in cursor.fetchall()}
 
-        # Get total statistics
+        # Общая статистика
         cursor.execute('SELECT COUNT(*) as total FROM quotes')
         total_quotes = cursor.fetchone()['total']
 

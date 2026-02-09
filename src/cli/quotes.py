@@ -1,4 +1,4 @@
-"""CLI commands for quote management"""
+"""CLI команды для управления цитатами"""
 
 import click
 from src.cli.common import db, CATEGORY_DISPLAY
@@ -19,15 +19,15 @@ def add_quote(text, author, source):
     """Добавить новую цитату вручную"""
     category = 'quotes'
 
-    # Get or create manual quotes book
+    # Получить или создать книгу для ручных цитат
     manual_book_id = db.get_or_create_manual_book(source='CLI')
 
-    # Clean up inputs
+    # Очищаем ввод
     quote_text = text.strip()
     quote_author = author.strip() if author else None
     quote_source = source.strip() if source else None
 
-    # Check for existing duplicate before adding
+    # Проверяем наличие дубликата перед добавлением
     existing = db.find_exact_duplicate(quote_text)
     if existing:
         click.echo(f'⚠ Цитата уже существует (ID: {existing["id"]})', err=True)
@@ -59,7 +59,7 @@ def list_quotes(category, limit, offset, search):
     """Показать цитаты с фильтрами"""
     quotes = db.get_all_quotes(category if category != 'all' else None)
 
-    # Filter by search text if provided
+    # Фильтруем по тексту поиска, если указан
     if search:
         search_lower = search.lower()
         quotes = [q for q in quotes if search_lower in q['text'].lower()]
@@ -84,7 +84,7 @@ def list_quotes(category, limit, offset, search):
         category_name = CATEGORY_DISPLAY.get(q["category"], q["category"])
         click.echo(f'\nID: {q["id"]} | Категория: {category_name} | Книга: {book_info}')
 
-        # Show quote author/source if available
+        # Показать автора/источник цитаты, если доступны
         if q["quote_author"] or q["quote_source"]:
             attribution = []
             if q["quote_author"]:
@@ -95,7 +95,7 @@ def list_quotes(category, limit, offset, search):
 
         click.echo('-'*80)
 
-        # Show preview of quote (first 200 chars)
+        # Показать превью цитаты (первые 200 символов)
         text_preview = q["text"][:200] + '...' if len(q["text"]) > 200 else q["text"]
         click.echo(text_preview)
         click.echo('='*80)
@@ -138,10 +138,10 @@ def view_quote(quote_id):
 @click.option('--text', prompt='Новый текст цитаты (можно с атрибуцией)', help='Новый текст цитаты')
 def edit_quote(quote_id, text):
     """Редактировать цитату"""
-    # Category is always 'quotes' for edited quotes
+    # Категория всегда 'quotes' для редактируемых цитат
     category = 'quotes'
 
-    # Parse quote to extract author and source if provided
+    # Парсим цитату для извлечения автора и источника
     quote_text, quote_author, quote_source = parse_quote(text)
 
     if db.update_quote(quote_id, quote_text, category, quote_author, quote_source):
@@ -158,7 +158,7 @@ def edit_quote(quote_id, text):
 @click.argument('quote_id', type=int)
 def delete_quote(quote_id):
     """Удалить цитату"""
-    # Get quote info first
+    # Сначала получаем информацию о цитате
     quotes = db.get_all_quotes()
     q = next((q for q in quotes if q["id"] == quote_id), None)
 
@@ -166,7 +166,7 @@ def delete_quote(quote_id):
         click.echo(f'✗ Цитата ID:{quote_id} не найдена', err=True)
         return
 
-    # Display quote
+    # Показываем цитату
     click.echo('\n' + '='*80)
     click.echo(f'ID: {q["id"]}')
     category_name = CATEGORY_DISPLAY.get(q["category"], q["category"])
@@ -184,14 +184,14 @@ def delete_quote(quote_id):
         click.echo(f'Атрибуция: {" / ".join(attribution)}')
 
     click.echo('-'*80)
-    # Show preview if quote is long
+    # Показать превью, если цитата длинная
     if len(q["text"]) > 300:
         click.echo(q["text"][:300] + '...')
     else:
         click.echo(q["text"])
     click.echo('='*80 + '\n')
 
-    # Confirm deletion
+    # Подтверждение удаления
     if not click.confirm('Вы уверены что хотите удалить эту цитату?'):
         click.echo('Отменено')
         return
@@ -231,7 +231,7 @@ def find_duplicates(threshold):
 
     duplicates = []
 
-    # Find pairs with similarity above threshold
+    # Находим пары со схожестью выше порога
     for i in range(total):
         if i % max(1, total // 10) == 0:
             progress = int((i / total) * 100)
@@ -256,7 +256,7 @@ def find_duplicates(threshold):
         click.echo(f'Пара #{idx} (схожесть {sim}%):')
         click.echo('-'*80)
 
-        # Show first quote
+        # Показать первую цитату
         click.echo(f'[1] ID: {q1["id"]} | Категория: {CATEGORY_DISPLAY.get(q1["category"], q1["category"])}')
         if q1["title"]:
             click.echo(f'    Книга: {q1["title"]} - {q1["author"]}')
@@ -264,7 +264,7 @@ def find_duplicates(threshold):
 
         click.echo()
 
-        # Show second quote
+        # Показать вторую цитату
         click.echo(f'[2] ID: {q2["id"]} | Категория: {CATEGORY_DISPLAY.get(q2["category"], q2["category"])}')
         if q2["title"]:
             click.echo(f'    Книга: {q2["title"]} - {q2["author"]}')
@@ -272,7 +272,7 @@ def find_duplicates(threshold):
 
         click.echo()
 
-        # Ask what to do
+        # Спрашиваем что делать
         choice = click.prompt(
             'Действие: [1] Оставить только ID:' + str(q1["id"]) + '  [2] Оставить только ID:' + str(q2["id"]) + '  [B] Оставить обе  [S] Пропустить',
             type=str,
@@ -301,7 +301,7 @@ def quote_stats(limit):
     click.echo('СТАТИСТИКА ПО ИЗБРАННОМУ')
     click.echo('='*80)
 
-    # Top quotes
+    # Топ цитат
     if stats['top_quotes']:
         click.echo(f'\nТОП-{len(stats["top_quotes"])} ЦИТАТ В ИЗБРАННОМ:\n')
         for i, q in enumerate(stats['top_quotes'], 1):
@@ -321,7 +321,7 @@ def quote_stats(limit):
     else:
         click.echo('\nНет цитат в избранном\n')
 
-    # By category
+    # По категориям
     if stats['by_category']:
         click.echo('ПО КАТЕГОРИЯМ:')
         for category, count in stats['by_category'].items():
@@ -329,7 +329,7 @@ def quote_stats(limit):
             click.echo(f'   {category_name}: {count} цитат в избранном')
         click.echo()
 
-    # Overall statistics
+    # Общая статистика
     click.echo('ОБЩАЯ СТАТИСТИКА:')
     click.echo(f'   Всего цитат: {stats["total_quotes"]}')
     click.echo(f'   Хотя бы раз в избранном: {stats["quotes_in_favorites"]} ({stats["quotes_in_favorites"]/stats["total_quotes"]*100:.1f}%)')

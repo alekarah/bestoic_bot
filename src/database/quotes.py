@@ -1,14 +1,16 @@
+"""Миксин операций с цитатами."""
+
 from typing import List, Optional, Tuple
 
 
 class QuotesMixin:
-    """Quote operations"""
+    """Операции с цитатами"""
 
     def find_exact_duplicate(self, text: str) -> Optional[Tuple]:
-        """Find exact duplicate quote by text
+        """Найти точный дубликат цитаты по тексту
 
         Returns:
-            Quote row if found, None otherwise
+            Строка цитаты если найдена, None иначе
         """
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -26,11 +28,11 @@ class QuotesMixin:
     def add_quote(self, text: str, category: str, book_id: Optional[int] = None,
                   quote_author: Optional[str] = None, quote_source: Optional[str] = None,
                   day_of_year: Optional[int] = None) -> int:
-        """Add a new quote (checks for exact duplicates first)"""
-        # Check for exact duplicate
+        """Добавить новую цитату (сначала проверяет дубликаты)"""
+        # Проверка на дубликат
         existing = self.find_exact_duplicate(text)
         if existing:
-            return existing['id']  # Return existing quote ID, don't add duplicate
+            return existing['id']  # Вернуть ID существующей цитаты, не добавлять дубликат
 
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -44,7 +46,7 @@ class QuotesMixin:
     def update_quote(self, quote_id: int, text: Optional[str] = None,
                      category: Optional[str] = None, quote_author: Optional[str] = None,
                      quote_source: Optional[str] = None) -> bool:
-        """Update quote fields"""
+        """Обновить поля цитаты"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
@@ -78,7 +80,7 @@ class QuotesMixin:
         return updated
 
     def delete_quote(self, quote_id: int) -> bool:
-        """Delete a quote"""
+        """Удалить цитату"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('DELETE FROM quotes WHERE id = ?', (quote_id,))
@@ -88,7 +90,7 @@ class QuotesMixin:
         return deleted
 
     def get_all_quotes(self, category: Optional[str] = None) -> List[Tuple]:
-        """Get all quotes, optionally filtered by category"""
+        """Получить все цитаты, опционально с фильтром по категории"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
@@ -113,18 +115,18 @@ class QuotesMixin:
         return quotes
 
     def get_random_quote(self, user_id: int, category: Optional[str] = None) -> Optional[Tuple]:
-        """Get a random quote that hasn't been sent to this user yet
+        """Получить случайную цитату, которая ещё не отправлялась пользователю
 
-        For 'daily' category, returns quote for current day of year.
-        For other categories, returns random unsent quote.
+        Для категории 'daily' возвращает цитату текущего дня года.
+        Для остальных категорий — случайную неотправленную цитату.
         """
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        # Special handling for 'daily' category - return quote for current day
+        # Особая обработка для категории 'daily' — вернуть цитату текущего дня
         if category == 'daily':
             from datetime import datetime
-            current_day = datetime.now().timetuple().tm_yday  # Day of year (1-366)
+            current_day = datetime.now().timetuple().tm_yday  # День года (1-366)
 
             cursor.execute('''
                 SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year
@@ -163,11 +165,11 @@ class QuotesMixin:
 
         quote = cursor.fetchone()
 
-        # If all quotes have been sent, reset the history for this user
+        # Если все цитаты отправлены — сбросить историю для этого пользователя
         if not quote:
             cursor.execute('DELETE FROM sent_quotes WHERE user_id = ?', (user_id,))
             conn.commit()
-            # Try again
+            # Попробовать снова
             if category and category != 'all':
                 cursor.execute('''
                     SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year
@@ -191,7 +193,7 @@ class QuotesMixin:
         return quote
 
     def get_quote_by_id(self, quote_id: int) -> Optional[Tuple]:
-        """Get a specific quote by ID"""
+        """Получить цитату по ID"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -205,7 +207,7 @@ class QuotesMixin:
         return quote
 
     def mark_quote_as_sent(self, user_id: int, quote_id: int):
-        """Mark a quote as sent to a user"""
+        """Отметить цитату как отправленную пользователю"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('INSERT INTO sent_quotes (user_id, quote_id) VALUES (?, ?)',

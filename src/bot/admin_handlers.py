@@ -1,4 +1,4 @@
-"""Backward compatibility - imports moved to src.bot.admin package"""
+"""Обратная совместимость — импорты перенесены в пакет src.bot.admin"""
 
 from src.bot.admin.quotes import (
     get_add_quote_handler,

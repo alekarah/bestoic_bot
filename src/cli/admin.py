@@ -17,7 +17,7 @@ def cli():
     pass
 
 
-# Register command groups
+# Регистрация групп команд
 cli.add_command(book)
 cli.add_command(quote)
 cli.add_command(library)

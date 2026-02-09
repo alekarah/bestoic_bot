@@ -1,11 +1,13 @@
+"""Миксин операций с книгами (источники цитат)."""
+
 from typing import List, Optional, Tuple
 
 
 class BooksMixin:
-    """Book operations (source books for quotes)"""
+    """Операции с книгами (источники цитат)"""
 
     def add_book(self, title: str, author: str) -> int:
-        """Add a new book"""
+        """Добавить новую книгу"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('INSERT INTO books (title, author) VALUES (?, ?)', (title, author))
@@ -15,7 +17,7 @@ class BooksMixin:
         return book_id
 
     def get_all_books(self) -> List[Tuple]:
-        """Get all books"""
+        """Получить все книги"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT id, title, author, uploaded_at FROM books ORDER BY uploaded_at DESC')
@@ -24,23 +26,23 @@ class BooksMixin:
         return books
 
     def delete_book(self, book_id: int, delete_quotes: bool = False) -> bool:
-        """Delete a book
+        """Удалить книгу
 
         Args:
-            book_id: ID of the book to delete
-            delete_quotes: If True, also delete all quotes from this book
+            book_id: ID книги для удаления
+            delete_quotes: Если True, удалить также все цитаты из этой книги
 
         Returns:
-            True if book was deleted, False otherwise
+            True если книга удалена, False иначе
         """
         conn = self.get_connection()
         cursor = conn.cursor()
 
         if delete_quotes:
-            # First delete all quotes from this book
+            # Сначала удалить все цитаты из этой книги
             cursor.execute('DELETE FROM quotes WHERE book_id = ?', (book_id,))
 
-        # Delete the book (if delete_quotes=False, quotes will have book_id=NULL due to ON DELETE SET NULL)
+        # Удалить книгу (если delete_quotes=False, у цитат book_id станет NULL из-за ON DELETE SET NULL)
         cursor.execute('DELETE FROM books WHERE id = ?', (book_id,))
         deleted = cursor.rowcount > 0
         conn.commit()
@@ -48,18 +50,18 @@ class BooksMixin:
         return deleted
 
     def get_or_create_manual_book(self, source: str = 'CLI') -> int:
-        """Get or create a virtual book for manually added quotes
+        """Получить или создать виртуальную книгу для вручную добавленных цитат
 
         Args:
-            source: Source of manual quotes ('CLI' or 'Telegram')
+            source: Источник цитат ('CLI' или 'Telegram')
 
         Returns:
-            book_id of the manual book
+            book_id виртуальной книги
         """
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        # Check if manual book already exists
+        # Проверить, существует ли виртуальная книга
         book_title = f"Ручные цитаты ({source})"
         cursor.execute('SELECT id FROM books WHERE title = ?', (book_title,))
         result = cursor.fetchone()
@@ -67,7 +69,7 @@ class BooksMixin:
         if result:
             book_id = result['id']
         else:
-            # Create new manual book
+            # Создать новую виртуальную книгу
             cursor.execute('INSERT INTO books (title, author) VALUES (?, ?)',
                           (book_title, 'Разное'))
             book_id = cursor.lastrowid

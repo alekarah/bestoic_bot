@@ -1,4 +1,4 @@
-"""CLI commands for book management (source books for quotes)"""
+"""CLI команды для управления книгами (книги-источники цитат)"""
 
 import click
 from src.cli.common import db, normalize_category, CATEGORY_DISPLAY
@@ -21,18 +21,18 @@ def book():
 def add_book(file_path, title, author, category):
     """Загрузить книгу из файла и разделить на цитаты"""
     try:
-        # Normalize category input
+        # Нормализуем ввод категории
         category = normalize_category(category)
 
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Add book to database
+        # Добавляем книгу в базу данных
         book_id = db.add_book(title, author)
         click.echo(f'✓ Книга "{title}" добавлена (ID: {book_id})')
 
-        # Split into paragraphs (quotes)
-        # Use triple newline for stronger separation, or double as fallback
+        # Разбиваем на абзацы (цитаты)
+        # Тройной перенос строки для чёткого разделения, двойной как запасной вариант
         if '\n\n\n' in content:
             paragraphs = [p.strip() for p in content.split('\n\n\n') if p.strip()]
         else:
@@ -41,12 +41,12 @@ def add_book(file_path, title, author, category):
         added_count = 0
         skipped_duplicates = 0
         for paragraph in paragraphs:
-            # Skip very short paragraphs (likely not quotes)
+            # Пропускаем слишком короткие абзацы (вероятно, не цитаты)
             if len(paragraph) > 50:
-                # Parse quote to extract author and source
+                # Парсим цитату для извлечения автора и источника
                 quote_text, quote_author, quote_source = parse_quote(paragraph)
 
-                # Check for duplicate
+                # Проверка на дубликат
                 existing = db.find_exact_duplicate(quote_text)
                 if existing:
                     skipped_duplicates += 1
@@ -75,11 +75,11 @@ def add_daily_book(file_path, title, author):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Add book to database
+        # Добавляем книгу в базу данных
         book_id = db.add_book(title, author)
         click.echo(f'✓ Книга "{title}" добавлена (ID: {book_id})')
 
-        # Parse daily stoicism format
+        # Парсим формат «Стоицизм на каждый день»
         click.echo('Парсинг записей по датам...')
         entries = parse_daily_stoicism_book(content)
 
@@ -90,7 +90,7 @@ def add_daily_book(file_path, title, author):
         added_count = 0
         skipped_duplicates = 0
         for entry in entries:
-            # Check for duplicate
+            # Проверка на дубликат
             existing = db.find_exact_duplicate(entry['text'])
             if existing:
                 skipped_duplicates += 1
@@ -138,7 +138,7 @@ def list_books():
 @click.argument('book_id', type=int)
 def delete_book(book_id):
     """Удалить книгу"""
-    # Get book info first
+    # Сначала получаем информацию о книге
     books = db.get_all_books()
     b = next((b for b in books if b['id'] == book_id), None)
 
@@ -146,7 +146,7 @@ def delete_book(book_id):
         click.echo(f'✗ Книга ID:{book_id} не найдена', err=True)
         return
 
-    # Count quotes in this book
+    # Считаем количество цитат в этой книге
     all_quotes = db.get_all_quotes()
     book_quotes_count = sum(1 for q in all_quotes if q['book_id'] == book_id)
 
@@ -154,7 +154,7 @@ def delete_book(book_id):
     click.echo(f'Цитат в книге: {book_quotes_count}')
     click.echo()
 
-    # Ask what to do
+    # Спрашиваем что делать
     if not click.confirm('Вы уверены что хотите удалить эту книгу?'):
         click.echo('Отменено')
         return
@@ -164,7 +164,7 @@ def delete_book(book_id):
     else:
         delete_quotes = False
 
-    # Delete book
+    # Удаляем книгу
     if db.delete_book(book_id, delete_quotes=delete_quotes):
         if delete_quotes:
             click.echo(f'✓ Книга ID:{book_id} и {book_quotes_count} цитат удалены')

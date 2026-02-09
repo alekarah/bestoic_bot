@@ -1,4 +1,4 @@
-"""Shared utilities for admin handlers"""
+"""Общие утилиты для админских обработчиков"""
 
 import functools
 from telegram import Update
@@ -10,7 +10,7 @@ db = Database()
 
 
 def admin_required(func):
-    """Decorator to restrict access to admin only"""
+    """Декоратор для ограничения доступа только администраторам"""
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id

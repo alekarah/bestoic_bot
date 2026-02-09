@@ -1,3 +1,5 @@
+"""Планировщик рассылки цитат по расписанию (APScheduler)."""
+
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -12,10 +14,10 @@ db = Database()
 
 
 async def send_scheduled_quotes(context: ContextTypes.DEFAULT_TYPE, time_slot: str):
-    """Send quotes to all users with subscriptions for a specific time slot"""
+    """Отправить цитаты всем пользователям с подписками на указанный временной слот"""
     logger.info(f"Sending scheduled quotes for time slot: {time_slot}")
 
-    # Get all active subscriptions for this time slot
+    # Получаем все активные подписки для этого временного слота
     subscriptions = db.get_subscriptions_by_time(time_slot)
     sent_count = 0
 
@@ -23,15 +25,15 @@ async def send_scheduled_quotes(context: ContextTypes.DEFAULT_TYPE, time_slot: s
         user_id = subscription['user_id']
         category = subscription['category']
 
-        # For 'daily' category, ensure we only send once per day
-        # The get_random_quote method already handles this by returning quote for current day
+        # Для категории 'daily' отправляем только раз в день
+        # Метод get_random_quote уже обрабатывает это, возвращая цитату текущего дня
         quote = db.get_random_quote(user_id, category)
 
         if quote:
             try:
                 await send_quote(user_id, quote, context, user_id=user_id)
-                # Only mark as sent for non-daily quotes
-                # Daily quotes should be available every day regardless of sent status
+                # Отмечаем как отправленную только для не-daily цитат
+                # Ежедневные цитаты должны быть доступны каждый день независимо от статуса отправки
                 if category != 'daily':
                     db.mark_quote_as_sent(user_id, quote['id'])
                 sent_count += 1
@@ -45,36 +47,36 @@ async def send_scheduled_quotes(context: ContextTypes.DEFAULT_TYPE, time_slot: s
 
 
 def setup_scheduler(application):
-    """Setup APScheduler for sending quotes"""
+    """Настроить APScheduler для отправки цитат по расписанию"""
     scheduler = AsyncIOScheduler()
 
-    # Morning quotes - 8:00
+    # Утренние цитаты — 8:00
     scheduler.add_job(
         send_scheduled_quotes,
         CronTrigger(hour=8, minute=0),
         args=[application, 'morning'],
         id='morning_quotes',
-        name='Send morning quotes',
+        name='Отправка утренних цитат',
         replace_existing=True
     )
 
-    # Day quotes - 14:00
+    # Дневные цитаты — 14:00
     scheduler.add_job(
         send_scheduled_quotes,
         CronTrigger(hour=14, minute=0),
         args=[application, 'day'],
         id='day_quotes',
-        name='Send day quotes',
+        name='Отправка дневных цитат',
         replace_existing=True
     )
 
-    # Evening quotes - 20:00
+    # Вечерние цитаты — 20:00
     scheduler.add_job(
         send_scheduled_quotes,
         CronTrigger(hour=20, minute=0),
         args=[application, 'evening'],
         id='evening_quotes',
-        name='Send evening quotes',
+        name='Отправка вечерних цитат',
         replace_existing=True
     )
 

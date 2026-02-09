@@ -1,31 +1,31 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Database migration script for adding day_of_year column and updating categories.
+Скрипт миграции базы данных: добавление колонки day_of_year и обновление категорий.
 
-This script:
-1. Adds day_of_year column to quotes table if it doesn't exist
-2. Updates CHECK constraints for new categories (quotes, daily)
-3. Safe to run multiple times - checks if changes already exist
+Скрипт выполняет:
+1. Добавление колонки day_of_year в таблицу quotes (если отсутствует)
+2. Обновление CHECK-ограничений для новых категорий (quotes, daily)
+3. Безопасен для повторного запуска — проверяет наличие изменений
 """
 
 import sqlite3
 import sys
 import config
 
-# Fix encoding for Windows console
+# Исправление кодировки для консоли Windows
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 
 def migrate_database():
-    """Run database migration"""
+    """Запуск миграции базы данных"""
     print("Starting database migration...")
     conn = sqlite3.connect(config.DATABASE_PATH)
     cursor = conn.cursor()
 
     try:
-        # Check current schema for quotes table
+        # Проверяем текущую схему таблицы quotes
         cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='quotes'")
         result = cursor.fetchone()
 
@@ -36,10 +36,10 @@ def migrate_database():
 
         current_schema = result[0]
 
-        # Check if we need to update the CHECK constraint
+        # Проверяем, нужно ли обновить CHECK-ограничение
         needs_constraint_update = "'daily'" not in current_schema and "category IN" in current_schema
 
-        # Check if day_of_year column exists
+        # Проверяем, существует ли колонка day_of_year
         cursor.execute("PRAGMA table_info(quotes)")
         columns = [col[1] for col in cursor.fetchall()]
         needs_day_of_year = 'day_of_year' not in columns
@@ -47,8 +47,8 @@ def migrate_database():
         if needs_constraint_update:
             print("[+] Updating CHECK constraint to include 'daily' category...")
 
-            # SQLite requires recreating the table to change CHECK constraints
-            # Step 1: Create new table with correct schema
+            # SQLite требует пересоздание таблицы для изменения CHECK-ограничений
+            # Шаг 1: Создаём новую таблицу с правильной схемой
             cursor.execute('''
                 CREATE TABLE quotes_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +63,7 @@ def migrate_database():
                 )
             ''')
 
-            # Step 2: Copy data, converting old categories to 'quotes'
+            # Шаг 2: Копируем данные, конвертируя старые категории в 'quotes'
             cursor.execute('''
                 INSERT INTO quotes_new (id, book_id, category, text, quote_author, quote_source, created_at, day_of_year)
                 SELECT id, book_id,
@@ -73,7 +73,7 @@ def migrate_database():
                 FROM quotes
             ''')
 
-            # Step 3: Drop old table and rename new one
+            # Шаг 3: Удаляем старую таблицу и переименовываем новую
             cursor.execute('DROP TABLE quotes')
             cursor.execute('ALTER TABLE quotes_new RENAME TO quotes')
 

@@ -1,13 +1,15 @@
+"""Миксин операций с пользователями и подписками."""
+
 from typing import List, Optional, Tuple
 
 
 class UsersMixin:
-    """User and subscription operations"""
+    """Операции с пользователями и подписками"""
 
-    # User operations
+    # Операции с пользователями
     def add_user(self, user_id: int, username: Optional[str] = None,
                  first_name: Optional[str] = None) -> bool:
-        """Add a new user or update existing"""
+        """Добавить нового пользователя или обновить существующего"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -23,7 +25,7 @@ class UsersMixin:
 
     def update_user_preferences(self, user_id: int, category: Optional[str] = None,
                                time_slot: Optional[str] = None) -> bool:
-        """Update user preferences"""
+        """Обновить настройки пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
@@ -40,7 +42,7 @@ class UsersMixin:
         return updated
 
     def get_user(self, user_id: int) -> Optional[Tuple]:
-        """Get user information"""
+        """Получить информацию о пользователе"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
@@ -49,7 +51,7 @@ class UsersMixin:
         return user
 
     def get_all_users(self) -> List[dict]:
-        """Get all users"""
+        """Получить всех пользователей"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT user_id, username, first_name, is_active FROM users')
@@ -58,7 +60,7 @@ class UsersMixin:
         return [{'user_id': u[0], 'username': u[1], 'first_name': u[2], 'is_active': u[3]} for u in users]
 
     def get_users_by_time_slot(self, time_slot: str) -> List[Tuple]:
-        """Get all active users for a specific time slot"""
+        """Получить всех активных пользователей для временного слота"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -71,7 +73,7 @@ class UsersMixin:
         return users
 
     def toggle_user_active(self, user_id: int, is_active: bool) -> bool:
-        """Toggle user active status"""
+        """Переключить статус активности пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('UPDATE users SET is_active = ? WHERE user_id = ?',
@@ -81,9 +83,9 @@ class UsersMixin:
         conn.close()
         return updated
 
-    # Subscription operations
+    # Операции с подписками
     def add_subscription(self, user_id: int, category: str, time_slot: str) -> bool:
-        """Add or update a subscription for a user"""
+        """Добавить или обновить подписку пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
@@ -98,13 +100,13 @@ class UsersMixin:
             conn.commit()
             return True
         except Exception as e:
-            print(f"Error adding subscription: {e}")
+            print(f"Ошибка добавления подписки: {e}")
             return False
         finally:
             conn.close()
 
     def remove_subscription(self, user_id: int, category: str) -> bool:
-        """Remove a subscription for a user"""
+        """Удалить подписку пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('DELETE FROM user_subscriptions WHERE user_id = ? AND category = ?',
@@ -115,7 +117,7 @@ class UsersMixin:
         return deleted
 
     def get_user_subscriptions(self, user_id: int) -> List[Tuple]:
-        """Get all active subscriptions for a user"""
+        """Получить все активные подписки пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -129,7 +131,7 @@ class UsersMixin:
         return subscriptions
 
     def get_subscriptions_by_time(self, time_slot: str, category: Optional[str] = None) -> List[Tuple]:
-        """Get all active subscriptions for a specific time slot"""
+        """Получить все активные подписки для временного слота"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
@@ -151,7 +153,7 @@ class UsersMixin:
         return subscriptions
 
     def toggle_subscription_active(self, user_id: int, category: str, is_active: bool) -> bool:
-        """Toggle subscription active status"""
+        """Переключить статус активности подписки"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -165,7 +167,7 @@ class UsersMixin:
         return updated
 
     def has_subscription(self, user_id: int, category: str) -> bool:
-        """Check if user has a subscription for a category"""
+        """Проверить, есть ли у пользователя подписка на категорию"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''

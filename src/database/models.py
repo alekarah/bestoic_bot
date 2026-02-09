@@ -1,3 +1,5 @@
+"""Модели базы данных — основной класс Database, собранный из миксинов."""
+
 import sqlite3
 import config
 
@@ -10,21 +12,25 @@ from src.database.statistics import StatisticsMixin
 
 
 class Database(BooksMixin, QuotesMixin, UsersMixin, FavoritesMixin, LibraryMixin, StatisticsMixin):
+    """Основной класс базы данных, объединяющий все миксины операций."""
+
     def __init__(self, db_path: str = config.DATABASE_PATH):
+        """Инициализация подключения к базе данных."""
         self.db_path = db_path
         self.init_db()
 
     def get_connection(self):
+        """Создать и вернуть соединение с базой данных."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
 
     def init_db(self):
-        """Initialize database tables"""
+        """Инициализация таблиц базы данных"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        # Books table
+        # Таблица книг
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS books (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +40,7 @@ class Database(BooksMixin, QuotesMixin, UsersMixin, FavoritesMixin, LibraryMixin
             )
         ''')
 
-        # Quotes table
+        # Таблица цитат
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS quotes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,7 +55,7 @@ class Database(BooksMixin, QuotesMixin, UsersMixin, FavoritesMixin, LibraryMixin
             )
         ''')
 
-        # Users table
+        # Таблица пользователей
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
@@ -62,7 +68,7 @@ class Database(BooksMixin, QuotesMixin, UsersMixin, FavoritesMixin, LibraryMixin
             )
         ''')
 
-        # Sent quotes tracking
+        # Таблица отправленных цитат
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sent_quotes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +80,7 @@ class Database(BooksMixin, QuotesMixin, UsersMixin, FavoritesMixin, LibraryMixin
             )
         ''')
 
-        # User subscriptions table (new subscription system)
+        # Таблица подписок пользователей
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_subscriptions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,7 +94,7 @@ class Database(BooksMixin, QuotesMixin, UsersMixin, FavoritesMixin, LibraryMixin
             )
         ''')
 
-        # Favorites table
+        # Таблица избранного
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS favorites (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,7 +107,7 @@ class Database(BooksMixin, QuotesMixin, UsersMixin, FavoritesMixin, LibraryMixin
             )
         ''')
 
-        # Library books table (for downloadable books)
+        # Таблица библиотеки (книги для скачивания)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS library_books (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,7 +120,7 @@ class Database(BooksMixin, QuotesMixin, UsersMixin, FavoritesMixin, LibraryMixin
             )
         ''')
 
-        # Book files table (multiple formats per book)
+        # Таблица файлов книг (несколько форматов на книгу)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS book_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,13 +135,13 @@ class Database(BooksMixin, QuotesMixin, UsersMixin, FavoritesMixin, LibraryMixin
             )
         ''')
 
-        # Migration: Add display_order column if it doesn't exist
+        # Миграция: добавить колонку display_order если её нет
         cursor.execute("PRAGMA table_info(library_books)")
         columns = [row[1] for row in cursor.fetchall()]
         if 'display_order' not in columns:
             cursor.execute('ALTER TABLE library_books ADD COLUMN display_order INTEGER DEFAULT 999')
 
-        # Migration: Add category column to library_books if it doesn't exist
+        # Миграция: добавить колонку category в library_books если её нет
         if 'category' not in columns:
             cursor.execute('ALTER TABLE library_books ADD COLUMN category TEXT DEFAULT NULL')
 

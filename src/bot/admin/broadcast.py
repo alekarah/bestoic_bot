@@ -1,4 +1,4 @@
-"""Admin handler for broadcast messages"""
+"""Админский обработчик рассылки сообщений"""
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -9,16 +9,16 @@ from telegram.ext import (
 )
 from src.bot.admin.common import admin_required, db
 
-# Broadcast states
+# Состояния рассылки
 BROADCAST_SELECT_AUDIENCE, BROADCAST_CONFIRM = 20, 21
 
 
 @admin_required
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start broadcast - send message to all users. Usage: /broadcast <message>"""
-    # Get text after /broadcast command (supports multiline)
+    """Начать рассылку — отправить сообщение всем пользователям. Использование: /broadcast <сообщение>"""
+    # Получаем текст после команды /broadcast (поддерживает многострочный текст)
     full_text = update.message.text
-    # Remove "/broadcast" or "/broadcast " prefix
+    # Убираем префикс "/broadcast" или "/broadcast "
     if full_text.startswith('/broadcast '):
         message_text = full_text[11:]  # len('/broadcast ') = 11
     elif full_text.startswith('/broadcast\n'):
@@ -39,7 +39,7 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data['broadcast_message'] = message_text
 
-    # Get counts
+    # Подсчитываем количество получателей
     all_users = db.get_all_users()
     users_without_subs = [u for u in all_users if not db.get_user_subscriptions(u['user_id'])]
 
@@ -50,7 +50,7 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Show preview without Markdown to avoid parsing issues with user text
+    # Показываем превью без Markdown, чтобы избежать проблем парсинга пользовательского текста
     await update.message.reply_text(
         f"📢 Рассылка\n\n"
         f"Сообщение:\n{message_text}\n\n"
@@ -61,7 +61,7 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle broadcast audience selection and confirmation"""
+    """Обработка выбора аудитории и подтверждения рассылки"""
     query = update.callback_query
     await query.answer()
 
@@ -69,7 +69,7 @@ async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.edit_message_text("❌ Рассылка отменена")
         return ConversationHandler.END
 
-    # Audience selection
+    # Выбор аудитории
     if query.data == 'broadcast_audience_all':
         context.user_data['broadcast_audience'] = 'all'
         all_users = db.get_all_users()
@@ -109,7 +109,7 @@ async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         await query.edit_message_text("📤 Отправка сообщений...")
 
-        # Get users based on audience
+        # Получаем пользователей на основе выбранной аудитории
         all_users = db.get_all_users()
         if audience == 'nosubs':
             users_to_send = [u for u in all_users if not db.get_user_subscriptions(u['user_id'])]
@@ -142,7 +142,7 @@ async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 def get_broadcast_handler():
-    """Get handler for /broadcast command"""
+    """Получить обработчик команды /broadcast"""
     return ConversationHandler(
         entry_points=[CommandHandler('broadcast', broadcast_command)],
         states={

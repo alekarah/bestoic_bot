@@ -1,12 +1,14 @@
+"""Миксин операций с избранными цитатами."""
+
 import sqlite3
 from typing import List, Optional, Tuple
 
 
 class FavoritesMixin:
-    """Favorites operations"""
+    """Операции с избранным"""
 
     def add_to_favorites(self, user_id: int, quote_id: int) -> bool:
-        """Add a quote to user's favorites"""
+        """Добавить цитату в избранное пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
@@ -22,7 +24,7 @@ class FavoritesMixin:
             conn.close()
 
     def remove_from_favorites(self, user_id: int, quote_id: int) -> bool:
-        """Remove a quote from user's favorites"""
+        """Удалить цитату из избранного пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -35,7 +37,7 @@ class FavoritesMixin:
         return removed
 
     def is_favorite(self, user_id: int, quote_id: int) -> bool:
-        """Check if a quote is in user's favorites"""
+        """Проверить, есть ли цитата в избранном пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -48,7 +50,7 @@ class FavoritesMixin:
         return exists
 
     def get_user_favorites(self, user_id: int, limit: int = 10, offset: int = 0) -> List[Tuple]:
-        """Get user's favorite quotes with pagination"""
+        """Получить избранные цитаты пользователя с пагинацией"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -66,7 +68,7 @@ class FavoritesMixin:
         return quotes
 
     def count_user_favorites(self, user_id: int) -> int:
-        """Count total favorites for a user"""
+        """Подсчитать количество избранных цитат пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''

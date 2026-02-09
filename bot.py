@@ -1,3 +1,5 @@
+"""Точка входа Telegram бота — инициализация, регистрация обработчиков, запуск."""
+
 import logging
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -8,7 +10,7 @@ from src.bot.scheduler import setup_scheduler
 import config
 
 
-# Enable logging
+# Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 async def post_init(application: Application):
-    """Set up bot menu commands after initialization"""
+    """Настройка команд меню бота после инициализации"""
     bot_commands = [
         BotCommand("start", "Начать работу с ботом"),
         BotCommand("settings", "Настроить подписки"),
@@ -27,7 +29,7 @@ async def post_init(application: Application):
         BotCommand("help", "Помощь и информация"),
     ]
 
-    # Admin commands (shown only to admin)
+    # Админские команды (видны только администраторам)
     admin_commands = [
         BotCommand("start", "Начать работу с ботом"),
         BotCommand("settings", "Настроить подписки"),
@@ -43,10 +45,10 @@ async def post_init(application: Application):
         BotCommand("broadcast", "📢 Рассылка сообщений"),
     ]
 
-    # Set commands for all users
+    # Устанавливаем команды для всех пользователей
     await application.bot.set_my_commands(bot_commands)
 
-    # Set admin commands for each admin user
+    # Устанавливаем админские команды для каждого администратора
     from telegram import BotCommandScopeChat
     for admin_id in config.ADMIN_USER_IDS:
         await application.bot.set_my_commands(
@@ -58,16 +60,16 @@ async def post_init(application: Application):
 
 
 def main():
-    """Start the bot"""
-    # Validate configuration
+    """Запуск бота"""
+    # Проверка конфигурации
     if not config.TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN is not set. Please check your .env file.")
         return
 
-    # Create application
+    # Создаём приложение
     application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).post_init(post_init).build()
 
-    # Register handlers
+    # Регистрируем обработчики
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("settings", settings_command))
@@ -75,7 +77,7 @@ def main():
     application.add_handler(CommandHandler("favorites", favorites_command))
     application.add_handler(CommandHandler("books", books_command))
 
-    # Register admin conversation handlers (must be before general callback handler)
+    # Регистрируем админские обработчики диалогов (должны быть до общего callback обработчика)
     application.add_handler(get_add_quote_handler())
     application.add_handler(get_delete_quote_handler())
     application.add_handler(get_edit_quote_handler())
@@ -83,16 +85,16 @@ def main():
     application.add_handler(get_admin_quote_stats_handler())
     application.add_handler(get_broadcast_handler())
 
-    # Register callback handler for settings and subscriptions (with pattern to avoid catching admin callbacks)
+    # Регистрируем callback обработчик для настроек и подписок (с паттерном, чтобы не перехватывать админские callback-и)
     application.add_handler(CallbackQueryHandler(button_callback, pattern='^(open_settings|add_sub_|remove_sub_|change_time_|select_time_|cancel_subscription)'))
 
-    # Register callback handler for favorites
+    # Регистрируем callback обработчик для избранного
     application.add_handler(CallbackQueryHandler(favorites_callback, pattern='^(fav_|unfav_|favpage_|favdel_)'))
 
-    # Register callback handler for library
+    # Регистрируем callback обработчик для библиотеки
     application.add_handler(CallbackQueryHandler(library_callback, pattern='^lib_'))
 
-    # Setup scheduler
+    # Настраиваем планировщик
     scheduler = setup_scheduler(application)
 
     logger.info("Bot started successfully!")
@@ -101,7 +103,7 @@ def main():
     logger.info("  - Day: 14:00")
     logger.info("  - Evening: 20:00")
 
-    # Run the bot
+    # Запускаем бота
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

@@ -1,11 +1,11 @@
-"""Shared utilities for CLI admin commands"""
+"""Общие утилиты для CLI админских команд"""
 
 import click
 from src.database.models import Database
 
 db = Database()
 
-# Mapping for category names
+# Маппинг названий категорий
 CATEGORY_MAP = {
     'quotes': 'quotes',
     'q': 'quotes',
@@ -20,7 +20,7 @@ CATEGORY_DISPLAY = {
     'daily': 'Стоицизм на каждый день'
 }
 
-# Library book categories
+# Категории книг библиотеки
 LIBRARY_CATEGORY_MAP = {
     'classic': 'classic',
     'c': 'classic',
@@ -39,7 +39,7 @@ LIBRARY_CATEGORY_DISPLAY = {
 
 
 def normalize_library_category(value):
-    """Convert user input to internal library category name"""
+    """Преобразовать пользовательский ввод во внутреннее название категории библиотеки"""
     if not value or value == '-':
         return None
     normalized = LIBRARY_CATEGORY_MAP.get(value.lower())
@@ -51,7 +51,7 @@ def normalize_library_category(value):
 
 
 def normalize_category(value):
-    """Convert user input to internal category name"""
+    """Преобразовать пользовательский ввод во внутреннее название категории"""
     normalized = CATEGORY_MAP.get(value.lower())
     if not normalized:
         raise click.BadParameter(
