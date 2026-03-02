@@ -66,16 +66,30 @@ class TestParseQuote:
 
 
 class TestDayOfYearToDate:
-    """Тесты конвертации дня года в русскую дату."""
+    """Тесты конвертации дня года в русскую дату.
+
+    Цитаты хранятся с day_of_year, посчитанным относительно 2024 (високосного) года.
+    День 60 = 29 февраля, день 61 = 1 марта. В невисокосный год бот пересчитывает
+    текущую дату через 2024, поэтому сдвига нет.
+    """
 
     def test_first_day(self):
         assert day_of_year_to_date(1) == "1 января"
 
-    def test_march_9(self):
-        assert day_of_year_to_date(69) == "9 марта"
+    def test_march_1(self):
+        # День 61 в 2024 (високосном) = 1 марта
+        assert day_of_year_to_date(61) == "1 марта"
+
+    def test_feb_28(self):
+        # День 59 = 28 февраля
+        assert day_of_year_to_date(59) == "28 февраля"
 
     def test_leap_day(self):
+        # День 60 = 29 февраля (только в 2024)
         assert day_of_year_to_date(60) == "29 февраля"
+
+    def test_march_9(self):
+        assert day_of_year_to_date(69) == "9 марта"
 
     def test_last_day(self):
         assert day_of_year_to_date(366) == "31 декабря"

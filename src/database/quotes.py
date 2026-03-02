@@ -126,7 +126,12 @@ class QuotesMixin:
         # Особая обработка для категории 'daily' — вернуть цитату текущего дня
         if category == 'daily':
             from datetime import datetime
-            current_day = datetime.now().timetuple().tm_yday  # День года (1-366)
+            # Цитаты в базе привязаны к дням 2024 (високосного) года.
+            # Чтобы в невисокосный год не было сдвига начиная с 1 марта,
+            # пересчитываем номер дня через 2024: берём число и месяц сегодня,
+            # но день года считаем относительно 2024.
+            now = datetime.now()
+            current_day = datetime(2024, now.month, now.day).timetuple().tm_yday
 
             cursor.execute('''
                 SELECT q.id, q.text, q.category, b.title, b.author, q.quote_author, q.quote_source, q.day_of_year
